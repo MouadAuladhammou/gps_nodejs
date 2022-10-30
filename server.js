@@ -97,7 +97,7 @@ offset.fetchLatestOffsets(["topic1"], async function (error, offsets) {
 }); 
 */
 
-// Kafka consumer (expp)
+// Kafka consumer
 consumer = new kafka.Consumer(
   client,
   [
@@ -172,9 +172,3 @@ io.on("connection", (socket) => {
 });
 
 server.listen(3000, () => console.log("Server started at port : 3000"));
-
-// var s = new Date(1665950863728).toLocaleDateString("en-US")
-// console.log(s)
-
-// var s = new Date(1665950863728).toLocaleTimeString("en-US")
-// console.log(s)
