@@ -94,7 +94,7 @@ offset.fetchLatestOffsets(["topic1"], async function (error, offsets) {
             // });   
         });
     });
-}); 
+});
 */
 
 // Kafka consumer
