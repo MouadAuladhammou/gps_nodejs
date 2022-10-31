@@ -14,13 +14,13 @@ Plateforme logicielle de traitement de flux.  Il s’agit d’une application we
 •	Redux : Gestion des caches
 
 ## Architectures
-Architecture système Kafka :
+> Architecture système Kafka :
 
 ![image](https://user-images.githubusercontent.com/116977929/199102768-db2b5e5c-a5af-48f3-a4f1-9e91d53a32be.png)
 
 <br />
 
-Architecture générale du projet :
+> Architecture générale du projet :
 
 ![image](https://user-images.githubusercontent.com/116977929/199102842-64f1371b-27f2-42bd-bb42-656d39750d46.png)
 
