@@ -13,6 +13,9 @@ Plateforme logicielle de traitement de flux.  Il s’agit d’une application we
 * Mysql/MongoDB : Gestion des données
 * Redux : Gestion des caches
 
+## Projet Tracker GPS (Front End)
+https://github.com/MouadAuladhammou/gps_angular
+
 ## Architectures
 > Architecture système Kafka :
 
