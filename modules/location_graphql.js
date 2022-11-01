@@ -4,8 +4,7 @@ const {
   GraphQLList,
   GraphQLSchema,
 } = require("graphql");
-var { Location_ } = require("../models/location");
-var { Location } = require("../models/location");
+var { Location, LocationGraphQL } = require("../models/location");
 
 async function getDataLocation(id) {
   return await Location.findOne({ _id: id });
@@ -20,7 +19,7 @@ const RootQuery = new GraphQLObjectType({
   name: "RootQueryType",
   fields: {
     location: {
-      type: Location_,
+      type: LocationGraphQL,
       args: {
         id: { type: GraphQLString },
       },
@@ -29,7 +28,7 @@ const RootQuery = new GraphQLObjectType({
       },
     },
     locations: {
-      type: new GraphQLList(Location_),
+      type: new GraphQLList(LocationGraphQL),
       resolve: async () => {
         return await getDataLocations();
       },

@@ -9,7 +9,7 @@ const Location = mongoose.model("Location", {
 });
 
 // model API GraphQL
-const Location_ = new GraphQLObjectType({
+const LocationGraphQL = new GraphQLObjectType({
   name: "Location",
   fields: () => ({
     _id: { type: GraphQLID },
@@ -21,5 +21,5 @@ const Location_ = new GraphQLObjectType({
 
 module.exports = {
   Location,
-  Location_,
+  LocationGraphQL,
 };

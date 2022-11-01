@@ -6,7 +6,7 @@ const expressGraphQL = require("express-graphql").graphqlHTTP;
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const location = require("./modules/location");
-const location_ = require("./modules/location_"); // GraphQL
+const location_graphql = require("./modules/location_graphql"); // GraphQL
 const user = require("./modules/user");
 var { Location } = require("./models/location");
 
@@ -25,7 +25,7 @@ app.use("/api/users", user);
 app.use(
   "/api/graphql/locations",
   expressGraphQL({
-    schema: location_,
+    schema: location_graphql,
     graphiql: true,
   })
 );
