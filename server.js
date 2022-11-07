@@ -9,6 +9,7 @@ const location = require("./modules/location");
 const location_graphql = require("./modules/location_graphql"); // GraphQL
 const user = require("./modules/user");
 var { Location } = require("./models/location");
+const map = require("./modules/map");
 
 const app = express();
 const server = require("http").createServer(app);
@@ -19,8 +20,10 @@ app.use(bodyParser.json());
 app.use(cors({ origin: "http://localhost:4200" }));
 app.use(cors());
 
+// routes
 app.use("/api/locations", location);
 app.use("/api/users", user);
+app.use("/api/map", map);
 
 app.use(
   "/api/graphql/locations",
