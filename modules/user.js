@@ -2,6 +2,7 @@ const express = require("express");
 var router = express.Router();
 var { User } = require("../models/user");
 const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 router.post("/register", (req, res) => {
   User.create({
@@ -10,9 +11,10 @@ router.post("/register", (req, res) => {
     password: req.body.password,
   })
     .then((result) => {
-      console.log("result.id", result.id);
       let payload = { subject: result.id };
-      const token = jwt.sign(payload, "_key_secret_");
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_DURING,
+      });
       res.status(200).send({ token });
     })
     .catch((error) => {
@@ -30,14 +32,9 @@ router.post("/login", (req, res) => {
         res.status(401).send({ Error: "Invalid Email or Password" });
       } else {
         let payload = { subject: user.id };
-        const token = jwt.sign(payload, "_key_secret_");
-
-        // res.cookie("token", token, {
-        //   expires: new Date(Date.now() + 10000), // 10 secondes TTL
-        //   httpOnly: true,
-        // });
-
-        console.log("done");
+        const token = jwt.sign(payload, process.env.JWT_SECRET, {
+          expiresIn: process.env.JWT_DURING,
+        });
         res.status(200).send({ token });
       }
     })

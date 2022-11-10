@@ -135,6 +135,7 @@ global.sockets = [];
 io.on("connection", (socket) => {
   console.log(`new connection socket - id: ${socket.id}`);
   socket.on("join", async (idClient) => {
+    console.log("join client id : ", idClient);
     await global.sockets.push(socket.id);
 
     // Trigger after insert
