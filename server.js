@@ -132,11 +132,11 @@ consumer.on("message", async function (pyload) {
 
 // Socket Connect
 global.sockets = [];
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log(`new connection socket - id: ${socket.id}`);
-  socket.on("join", async (idClient) => {
+  await global.sockets.push(socket.id);
+  socket.on("join", (idClient) => {
     console.log("join client id : ", idClient);
-    await global.sockets.push(socket.id);
 
     // Trigger after insert
     Location.watch().on("change", async (info) => {
@@ -162,11 +162,7 @@ io.on("connection", (socket) => {
 
   // Socket disconnect
   socket.on("disconnecting", () => {
-    console.log("disconnecting");
-  });
-
-  // Socket disconnect
-  socket.on("disconnect", () => {
+    console.log("disconnecting...");
     var index = global.sockets.indexOf(socket.id);
     if (index !== -1) {
       global.sockets.splice(index, 1);
