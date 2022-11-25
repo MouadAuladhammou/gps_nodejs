@@ -13,8 +13,8 @@ Plateforme logicielle de traitement de flux.  Il s’agit d’une application we
 * Mysql/MongoDB : Gestion des données
 * Redux : Gestion des caches
 
-## Projet Tracker GPS (Front End)
-https://github.com/MouadAuladhammou/gps_angular
+## Projet Tracker GPS (Back End)
+https://github.com/MouadAuladhammou/gps_nodejs
 
 ## Architectures
 > Architecture système Kafka :
@@ -26,6 +26,17 @@ https://github.com/MouadAuladhammou/gps_angular
 > Architecture générale du projet :
 
 ![image](https://user-images.githubusercontent.com/116977929/199102842-64f1371b-27f2-42bd-bb42-656d39750d46.png)
+
+> Architecture Mysql :
+
+![Screenshot_3](https://user-images.githubusercontent.com/116977929/204054013-868fade4-6941-444c-b381-9e61d0489cd2.png)
+
+> Architecture MongoDB :
+
+* Chaque mois a sa propre base de données
+* Chaque véhicule a une collection
+Exp : db_gps_10_2022 (DB) -> vehicle_10 (Collection) -> {vehicle_id, latitude, longitude, datetime}<br />
+NB: vehicle_10 => 10 c'est ID du véhicule
 
 ## Captures
 
