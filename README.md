@@ -34,7 +34,7 @@ https://github.com/MouadAuladhammou/gps_nodejs
 > Architecture MongoDB :
 
 * Chaque mois a sa propre base de données
-* Chaque véhicule a une collection
+* Chaque véhicule a une collection<br />
 Exp : db_gps_10_2022 (DB) -> vehicle_10 (Collection) -> {vehicle_id, latitude, longitude, datetime}<br />
 NB: vehicle_10 => 10 c'est ID du véhicule
 
