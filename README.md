@@ -29,7 +29,7 @@ https://github.com/MouadAuladhammou/gps_nodejs
 
 > Architecture Mysql :
 
-![Screenshot_3](https://user-images.githubusercontent.com/116977929/204054013-868fade4-6941-444c-b381-9e61d0489cd2.png)
+![image](https://user-images.githubusercontent.com/116977929/204658792-9f218345-e076-4a8b-b55d-32c43afeaed0.png)
 
 > Architecture MongoDB :
 
