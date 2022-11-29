@@ -5,7 +5,7 @@ var { Location } = require("../models/location");
 
 router.get("/last_record", (req, res) => {
   Location.findOne()
-    .sort({ createdAt: -1 })
+    .sort({ created_at: -1 })
     .then(function (result) {
       if (result) res.send(result);
     })
@@ -16,9 +16,10 @@ router.get("/last_record", (req, res) => {
 
 router.post("/new", (req, res) => {
   Location.create({
-    x: req.body.x,
-    y: req.body.y,
-    createdAt: new Date(),
+    vehicle_id: req.body.vehicle_id,
+    latitude: req.body.latitude,
+    longitude: req.body.longitude,
+    created_at: new Date(),
   })
     .then((result) => {
       res.send("done");

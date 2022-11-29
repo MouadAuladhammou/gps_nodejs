@@ -17,7 +17,7 @@ consumer.on("message", async function (pyload) {
   Location.create({
     x: data.x,
     y: data.y,
-    createdAt: new Date(),
+    created_at: new Date(),
   })
     .then((result) => {
       console.log(result);

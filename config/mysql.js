@@ -1,5 +1,5 @@
 const Sequelize = require("sequelize");
-const sequelize = new Sequelize("gps_users", "root", "", {
+const sequelize = new Sequelize("gpsdb", "root", "", {
   host: "localhost",
   dialect: "mysql",
 });
