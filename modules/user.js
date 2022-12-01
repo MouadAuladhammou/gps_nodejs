@@ -5,6 +5,7 @@ var { Vehicle } = require("../models/vehicle");
 var { Company } = require("../models/company");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const { Op } = require("sequelize");
 
 // Admin
 router.get("/all", (req, res) => {
@@ -129,6 +130,43 @@ router.put("/update/:id", (req, res) => {
     })
     .catch((error) => {
       console.error("Failed to create a new record : ", error);
+    });
+});
+
+router.get("/email/unique", async (req, res) => {
+  User.findOne({ where: { email: req.query.q } })
+    .then(function (result) {
+      if (!result) res.send(false);
+      else res.send(true);
+    })
+    .catch((error) => {
+      console.error("Error : ", error);
+    });
+});
+
+router.get("/cin/unique", async (req, res) => {
+  User.findOne({ where: { cin: req.query.q } })
+    .then(function (result) {
+      if (!result) res.send(false);
+      else res.send(true);
+    })
+    .catch((error) => {
+      console.error("Error : ", error);
+    });
+});
+
+router.get("/phone/unique", async (req, res) => {
+  User.findOne({
+    where: {
+      [Op.or]: [{ cell_phone: req.query.q }, { work_phone: req.query.q }],
+    },
+  })
+    .then(function (result) {
+      if (!result) res.send(false);
+      else res.send(true);
+    })
+    .catch((error) => {
+      console.error("Error : ", error);
     });
 });
 
