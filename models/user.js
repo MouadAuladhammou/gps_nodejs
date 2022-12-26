@@ -4,6 +4,7 @@ const sequelize = require("../config/mysql");
 // Models
 var { Vehicle } = require("../models/vehicle");
 var { Company } = require("../models/company");
+var { GeoParameter } = require("../models/geographic");
 
 const User = sequelize.define(
   "users",
@@ -74,6 +75,11 @@ User.hasMany(Company, {
 User.hasOne(Vehicle, {
   foreignKey: "user_id",
   as: "vehicle",
+});
+
+User.hasOne(GeoParameter, {
+  foreignKey: "user_id",
+  as: "geo_parameter",
 });
 
 module.exports = { User };

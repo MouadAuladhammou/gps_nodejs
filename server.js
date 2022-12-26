@@ -23,11 +23,13 @@ const location = require("./modules/location");
 const location_graphql = require("./modules/location_graphql"); // GraphQL
 const user = require("./modules/user");
 const map = require("./modules/map");
+const geographic = require("./modules/geographic");
 
 // routes
 app.use("/api/locations", location);
 app.use("/api/users", user);
 app.use("/api/map", map);
+app.use("/api/geographic", geographic);
 
 app.use(
   "/api/graphql/locations",
@@ -62,6 +64,8 @@ consumer.on("message", async function (pyload) {
     vehicle_id: data.vehicle_id,
     latitude: data.latitude,
     longitude: data.longitude,
+    hour: new Date().getHours(),
+    minute: new Date().getMinutes(),
     created_at: new Date(),
   })
     .then((res) => {
