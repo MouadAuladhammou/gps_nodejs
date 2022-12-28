@@ -25,7 +25,7 @@ router.post("/new", (req, res) => {
       res.send("done");
     })
     .catch((error) => {
-      console.error("Failed to create a new record: ", error);
+      console.error(error);
     });
 });
 
@@ -33,17 +33,18 @@ router.post("/new", (req, res) => {
 router.get("/", (req, res) => {
   let { page = 1, limit = 10, start_date, end_date, range, hour } = req?.query;
 
-  let [dateComponents, timeComponents] = start_date.split(" ");
-  let [day, month, year] = dateComponents.split("/");
-  let [hours, minutes, seconds] = timeComponents.split(":");
+  // initialisation des dates
+  let [date, time] = start_date.split(" ");
+  let [day, month, year] = date.split("/");
+  let [hours, minutes, seconds] = time.split(":");
   start_date = new Date(+year, month - 1, +day, +hours, +minutes, +seconds);
 
-  [dateComponents, timeComponents] = end_date.split(" ");
-  [day, month, year] = dateComponents.split("/");
-  [hours, minutes, seconds] = timeComponents.split(":");
+  [date, time] = end_date.split(" ");
+  [day, month, year] = date.split("/");
+  [hours, minutes, seconds] = time.split(":");
   end_date = new Date(+year, month - 1, +day, +hours, +minutes, +seconds);
 
-  // Vérifier la date si elle n'existe pas (si la date n'existe pas, retourner les données du mois dernier)
+  // vérifier d'abord la date si elle existe, sinon l'initialisation des données doit être du mois dernier au jour en cours
   if (!start_date)
     start_date = new Date(
       new Date().getFullYear(),
@@ -52,7 +53,7 @@ router.get("/", (req, res) => {
     );
   if (!end_date) end_date = new Date();
 
-  // adjust limit
+  // adjust limit with range
   if (range && range > 1) {
     limit = limit * parseInt(range);
   }
@@ -81,7 +82,7 @@ router.get("/", (req, res) => {
             .where({ hour: hour })
             .countDocuments();
 
-          // ajustez le nombre de pages s'il y a une plage spécifique (il s'agit de Input de type "range")
+          // ajuster le nombre de pages s'il y a une plage spécifique (il s'agit de Input de type "range")
           if (range && range > 1) {
             count = count / parseInt(range);
           }

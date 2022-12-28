@@ -27,6 +27,10 @@ const GeoParameter = sequelize.define(
 
 // Model GeoConfiguration
 // Récupérer tous les éléments de configuration (points, lignes et polygons)
+// à noter :
+// - chaque client crée à une configuration geographique précise initialisé dans mongoDB (geo_configurations)
+// - initialiser les données à enregistrer dans mongoDB
+// - Chaque point, ligne ou polygone doit inclure un identifiant généré pour pouvoir ensuite être modifié ou supprimé
 const GeoConfiguration = mongoose.model("geo_configurations", {
   user_id: { type: Number, unique: true },
   points: [

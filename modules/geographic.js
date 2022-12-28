@@ -17,12 +17,16 @@ router.post("/store/parameter", (req, res) => {
     });
 });
 
-// ===================================================[GETA CONFIG GEOJSON]=================================================== //
+// ===================================================[GET ALL CONFIG GEOJSON]=================================================== //
 // récupérer tous les éléments geoJson
 router.get("/configuration/:id", async (req, res) => {
-  const userId = req.params.id;
-  const geoJson = await GeoConfiguration.findOne({ user_id: userId });
-  if (geoJson) res.send({ geoJson });
+  try {
+    const userId = req.params.id;
+    const geoJson = await GeoConfiguration.findOne({ user_id: userId });
+    if (geoJson) res.send({ geoJson });
+  } catch (error) {
+    return res.status(500).send({ error });
+  }
 });
 
 // ===================================================[STORE]=================================================== //
@@ -37,7 +41,7 @@ router.post("/store/configuration/point", (req, res) => {
       },
     },
     (err, result) => {
-      if (err) console.error("Failed to create a new record: \n", err);
+      if (err) console.error(err);
       if (result) res.send(result);
     }
   );
@@ -54,7 +58,7 @@ router.post("/store/configuration/polygon", (req, res) => {
       },
     },
     (err, result) => {
-      if (err) console.error("Failed to create a new record: \n", err);
+      if (err) console.error(err);
       if (result) res.send(result);
     }
   );
@@ -71,7 +75,7 @@ router.post("/store/configuration/line", (req, res) => {
       },
     },
     (err, result) => {
-      if (err) console.error("Failed to create a new record: \n", err);
+      if (err) console.error(err);
       if (result) res.send(result);
     }
   );
@@ -80,62 +84,63 @@ router.post("/store/configuration/line", (req, res) => {
 // ===================================================[POPUP]=================================================== //
 // set popup
 router.put("/layer/popup", (req, res) => {
-  console.log("popup");
-  const item = req.body;
-  console.log("lineJson", item);
-  switch (item.type) {
-    case "point":
-      GeoConfiguration.findOneAndUpdate(
-        { user_id: item.userId, "points.properties.id": item.id },
-        { $set: { "points.$.properties.desc": item.contentText } },
-        (err, result) => {
-          if (err) console.error("Failed to create a new record: \n", err);
-          if (result) res.send(result);
-        }
-      );
-      break;
+  try {
+    const data = req.body;
+    switch (data.type) {
+      case "point":
+        GeoConfiguration.findOneAndUpdate(
+          { user_id: data.userId, "points.properties.id": data.id },
+          { $set: { "points.$.properties.desc": data.contentText } },
+          (err, result) => {
+            if (err) console.error(err);
+            if (result) res.send(result);
+          }
+        );
+        break;
 
-    case "polygon":
-      GeoConfiguration.findOneAndUpdate(
-        { user_id: item.userId, "polygons.properties.id": item.id },
-        { $set: { "polygons.$.properties.desc": item.contentText } },
-        (err, result) => {
-          if (err) console.error("Failed to create a new record: \n", err);
-          if (result) res.send(result);
-        }
-      );
-      break;
+      case "polygon":
+        GeoConfiguration.findOneAndUpdate(
+          { user_id: data.userId, "polygons.properties.id": data.id },
+          { $set: { "polygons.$.properties.desc": data.contentText } },
+          (err, result) => {
+            if (err) console.error(err);
+            if (result) res.send(result);
+          }
+        );
+        break;
 
-    case "line":
-      GeoConfiguration.findOneAndUpdate(
-        { user_id: item.userId, "lines.properties.id": item.id },
-        { $set: { "lines.$.properties.desc": item.contentText } },
-        (err, result) => {
-          if (err) console.error("Failed to create a new record: \n", err);
-          if (result) res.send(result);
-        }
-      );
-      break;
+      case "line":
+        GeoConfiguration.findOneAndUpdate(
+          { user_id: data.userId, "lines.properties.id": data.id },
+          { $set: { "lines.$.properties.desc": data.contentText } },
+          (err, result) => {
+            if (err) console.error(err);
+            if (result) res.send(result);
+          }
+        );
+        break;
+    }
+  } catch (error) {
+    return res.status(500).send({ error });
   }
 });
 
 // ===================================================[UPDATE]=================================================== //
 // update point
 router.put("/update/configuration/point", (req, res) => {
-  const item = req.body;
-  console.log("lineJson", item);
+  const data = req.body;
   GeoConfiguration.findOneAndUpdate(
     {
-      user_id: item.userId,
-      "points.properties.id": item.dataJson.properties.id,
+      user_id: data.userId,
+      "points.properties.id": data.dataJson.properties.id,
     },
     {
       $set: {
-        "points.$.geometry.coordinates": item.dataJson.geometry.coordinates,
+        "points.$.geometry.coordinates": data.dataJson.geometry.coordinates,
       },
     },
     (err, result) => {
-      if (err) console.error("Failed to create a new record: \n", err);
+      if (err) console.error(err);
       if (result) res.send(result);
     }
   );
@@ -143,20 +148,19 @@ router.put("/update/configuration/point", (req, res) => {
 
 // update polygon
 router.put("/update/configuration/polygon", (req, res) => {
-  const item = req.body;
-  console.log("polygonJson", item);
+  const data = req.body;
   GeoConfiguration.findOneAndUpdate(
     {
-      user_id: item.userId,
-      "polygons.properties.id": item.dataJson.properties.id,
+      user_id: data.userId,
+      "polygons.properties.id": data.dataJson.properties.id,
     },
     {
       $set: {
-        "polygons.$.geometry.coordinates": item.dataJson.geometry.coordinates,
+        "polygons.$.geometry.coordinates": data.dataJson.geometry.coordinates,
       },
     },
     (err, result) => {
-      if (err) console.error("Failed to create a new record: \n", err);
+      if (err) console.error(err);
       if (result) res.send(result);
     }
   );
@@ -164,20 +168,19 @@ router.put("/update/configuration/polygon", (req, res) => {
 
 // update line
 router.put("/update/configuration/line", (req, res) => {
-  const item = req.body;
-  console.log("lineJson", item);
+  const data = req.body;
   GeoConfiguration.findOneAndUpdate(
     {
-      user_id: item.userId,
-      "lines.properties.id": item.dataJson.properties.id,
+      user_id: data.userId,
+      "lines.properties.id": data.dataJson.properties.id,
     },
     {
       $set: {
-        "lines.$.geometry.coordinates": item.dataJson.geometry.coordinates,
+        "lines.$.geometry.coordinates": data.dataJson.geometry.coordinates,
       },
     },
     (err, result) => {
-      if (err) console.error("Failed: \n", err);
+      if (err) console.error(err);
       if (result) res.send(result);
     }
   );
@@ -186,59 +189,62 @@ router.put("/update/configuration/line", (req, res) => {
 // ===================================================[DELETE]=================================================== //
 // delete layer
 router.put("/configuration", (req, res) => {
-  const item = req.body;
-  console.log("itemJson", item);
-  switch (item.type) {
-    case "point":
-      GeoConfiguration.findOneAndUpdate(
-        { user_id: item.userId },
-        {
-          $pull: {
-            points: {
-              "properties.id": item.id,
+  try {
+    const data = req.body;
+    switch (data.type) {
+      case "point":
+        GeoConfiguration.findOneAndUpdate(
+          { user_id: data.userId },
+          {
+            $pull: {
+              points: {
+                "properties.id": data.id,
+              },
             },
           },
-        },
-        (err, result) => {
-          if (err) console.error("Failed to create a new record: \n", err);
-          else if (result) res.send(result);
-        }
-      );
-      break;
+          (err, result) => {
+            if (err) console.error(err);
+            else if (result) res.send(result);
+          }
+        );
+        break;
 
-    case "polygon":
-      GeoConfiguration.findOneAndUpdate(
-        { user_id: item.userId },
-        {
-          $pull: {
-            polygons: {
-              "properties.id": item.id,
+      case "polygon":
+        GeoConfiguration.findOneAndUpdate(
+          { user_id: data.userId },
+          {
+            $pull: {
+              polygons: {
+                "properties.id": data.id,
+              },
             },
           },
-        },
-        (err, result) => {
-          if (err) console.error("Failed to create a new record: \n", err);
-          else if (result) res.send(result);
-        }
-      );
-      break;
+          (err, result) => {
+            if (err) console.error(err);
+            else if (result) res.send(result);
+          }
+        );
+        break;
 
-    case "line":
-      GeoConfiguration.findOneAndUpdate(
-        { user_id: item.userId },
-        {
-          $pull: {
-            lines: {
-              "properties.id": item.id,
+      case "line":
+        GeoConfiguration.findOneAndUpdate(
+          { user_id: data.userId },
+          {
+            $pull: {
+              lines: {
+                "properties.id": data.id,
+              },
             },
           },
-        },
-        (err, result) => {
-          if (err) console.error("Failed to create a new record: \n", err);
-          else if (result) res.send(result);
-        }
-      );
-      break;
+          (err, result) => {
+            if (err) console.error(err);
+            else if (result) res.send(result);
+          }
+        );
+        break;
+    }
+  } catch (error) {
+    return res.status(500).send({ error });
   }
 });
 

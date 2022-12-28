@@ -6,7 +6,7 @@ const {
 } = require("graphql");
 var { Location, LocationGraphQL } = require("../models/location");
 
-async function getDataLocation(id) {
+async function getLocation(id) {
   return await Location.findOne({ _id: id });
 }
 
@@ -24,7 +24,7 @@ const RootQuery = new GraphQLObjectType({
         id: { type: GraphQLString },
       },
       resolve: async (parentValue, args) => {
-        return await getDataLocation(args.id);
+        return await getLocation(args.id);
       },
     },
     locations: {

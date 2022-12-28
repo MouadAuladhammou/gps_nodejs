@@ -16,11 +16,11 @@ router.get("/all", (req, res) => {
     // }
     ()
     .then(function (result) {
-      if (!result) return "not find";
+      if (!result) return "not found";
       else res.send(result);
     })
     .catch((error) => {
-      console.error("Failed to create a new record : ", error);
+      console.error("Error : ", error);
     });
 });
 
@@ -29,11 +29,11 @@ router.get("/show/:id", (req, res) => {
     where: { id: req.params.id },
   })
     .then(function (result) {
-      if (!result) return "not find";
+      if (!result) return "not found";
       else res.send(result.dataValues);
     })
     .catch((error) => {
-      console.error("Failed to create a new record : ", error);
+      console.error("Error : ", error);
     });
 });
 
@@ -47,7 +47,7 @@ router.delete("/delete/:id", (req, res) => {
       }
     })
     .catch((error) => {
-      console.error("Failed to create a new record : ", error);
+      console.error("Error : ", error);
     });
 });
 
@@ -87,9 +87,9 @@ router.post("/register", (req, res) => {
 });
 
 router.post("/login", (req, res) => {
-  let userData = req.body;
+  let user = req.body;
   User.findOne({
-    where: { email: userData.email, password: userData.password },
+    where: { email: user.email, password: user.password },
   })
     .then(function (user) {
       if (!user) {
@@ -129,7 +129,7 @@ router.put("/update/:id", (req, res) => {
       res.send("done");
     })
     .catch((error) => {
-      console.error("Failed to create a new record : ", error);
+      console.error("Error : ", error);
     });
 });
 
@@ -182,11 +182,11 @@ router.get("/:id/vehicle", (req, res) => {
     ],
   })
     .then(function (result) {
-      if (!result) return "not find";
+      if (!result) return "not found";
       else res.send(result.dataValues);
     })
     .catch((error) => {
-      console.error("Failed to create a new record : ", error);
+      console.error("Error : ", error);
     });
 });
 
@@ -207,11 +207,11 @@ router.get("/:id/companies", (req, res) => {
     ],
   })
     .then(function (result) {
-      if (!result) return "not find";
+      if (!result) return "not found";
       else res.send(result.dataValues);
     })
     .catch((error) => {
-      console.error("Failed to create a new record : ", error);
+      console.error("Error : ", error);
     });
 });
 
