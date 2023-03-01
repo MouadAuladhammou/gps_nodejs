@@ -22,12 +22,14 @@ var { Location } = require("./models/location");
 const location = require("./modules/location");
 const location_graphql = require("./modules/location_graphql"); // GraphQL
 const user = require("./modules/user");
+const admin = require("./modules/admin");
 const map = require("./modules/map");
 const geographic = require("./modules/geographic");
 
 // routes
 app.use("/api/locations", location);
 app.use("/api/users", user);
+app.use("/api/admin", admin);
 app.use("/api/map", map);
 app.use("/api/geographic", geographic);
 

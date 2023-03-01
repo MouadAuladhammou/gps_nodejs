@@ -58,3 +58,15 @@ CREATE TABLE geo_parameters (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE admins (
+    id int NOT NULL AUTO_INCREMENT,
+    last_name varchar(255) NOT NULL,
+    first_name varchar(255) NOT NULL,
+    email varchar(255) NOT NULL UNIQUE,
+    password varchar(255) NOT NULL,
+    roles TEXT,
+    status TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+);

@@ -1,13 +1,13 @@
 const express = require("express");
 var router = express.Router();
-var { User } = require("../models/user");
-var { Vehicle } = require("../models/vehicle");
-var { Company } = require("../models/company");
+var { Admin } = require("../models/admin");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { Op } = require("sequelize");
+const { verifyAdminToken } = require("../middleware/check_token");
 
-// Admin
+// Super Admin (cette partie est pas encore traitée)
+/////////////////////////////////////////////////
 router.get("/all", async (req, res) => {
   const pageAsNumber = Number.parseInt(req.query.page);
   const sizeAsNumber = Number.parseInt(req.query.limit);
@@ -90,8 +90,7 @@ router.delete("/delete/:id", (req, res) => {
     });
 });
 
-// User
-router.post("/register", (req, res) => {
+router.post("/add", (req, res) => {
   User.create({
     last_name: req.body.last_name,
     first_name: req.body.first_name,
@@ -107,6 +106,7 @@ router.post("/register", (req, res) => {
     has_company: req.body.has_company,
   })
     .then((result) => {
+      console.log("result", result);
       let payload = { subject: result.id };
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_DURING,
@@ -118,27 +118,6 @@ router.post("/register", (req, res) => {
     })
     .catch((error) => {
       console.error("Failed to create a new record : ", error);
-    });
-});
-
-router.post("/login", (req, res) => {
-  let user = req.body;
-  User.findOne({
-    where: { email: user.email, password: user.password },
-  })
-    .then(function (user) {
-      if (!user) {
-        res.status(401).send({ Error: "Invalid Email or Password" });
-      } else {
-        let payload = { subject: user.id };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, {
-          expiresIn: process.env.JWT_DURING,
-        });
-        res.status(200).send({ token, user });
-      }
-    })
-    .catch((error) => {
-      res.status(500).send({ Error: error });
     });
 });
 
@@ -178,76 +157,132 @@ router.get("/email/unique", async (req, res) => {
       console.error("Error : ", error);
     });
 });
+/////////////////////////////////////////////////
 
-router.get("/cin/unique", async (req, res) => {
-  User.findOne({ where: { cin: req.query.q } })
-    .then(function (result) {
-      if (!result) res.send(false);
-      else res.send(true);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
-});
-
-router.get("/phone/unique", async (req, res) => {
-  User.findOne({
-    where: {
-      [Op.or]: [{ cell_phone: req.query.q }, { work_phone: req.query.q }],
+const roles_admin = [
+  {
+    user: {
+      add: true,
+      edit: false,
+      delete: false,
     },
+    admin: {
+      add: false,
+      edit: false,
+      delete: false,
+    },
+    vehicle: {
+      add: true,
+      edit: true,
+      delete: false,
+    },
+  },
+];
+
+let refreshTokens = [];
+
+const generateAccessToken = (admin) => {
+  return jwt.sign(
+    {
+      id: admin.id,
+      first_name: admin.first_name,
+      last_name: admin.last_name,
+      roles: admin.roles,
+    },
+    "mySecretKey",
+    {
+      expiresIn: "100000s",
+    }
+  );
+};
+
+const generateRefreshToken = (admin) => {
+  return jwt.sign(
+    {
+      id: admin.id,
+      first_name: admin.first_name,
+      last_name: admin.last_name,
+      roles: admin.roles,
+    },
+    "myRefreshSecretKey",
+    {
+      expiresIn: "200000s",
+    }
+  );
+};
+
+router.post("/login", (req, res) => {
+  let admin = req.body;
+  Admin.findOne({
+    where: { email: admin.email, password: admin.password },
   })
-    .then(function (result) {
-      if (!result) res.send(false);
-      else res.send(true);
+    .then(function (admin) {
+      if (!admin) {
+        res.status(401).send({ Error: "Invalid Email or Password" });
+      } else {
+        //Generate an access token
+        const accessToken = generateAccessToken(admin);
+        const refreshToken = generateRefreshToken(admin);
+        refreshTokens.push(refreshToken);
+        res.status(200).send({
+          id: admin.id,
+          first_name: admin.first_name,
+          last_name: admin.last_name,
+          roles: admin.roles,
+          accessToken,
+          refreshToken,
+        });
+      }
     })
     .catch((error) => {
-      console.error("Error : ", error);
+      console.log("Error", error);
     });
 });
 
-// Communes
-router.get("/:id/vehicle", (req, res) => {
-  User.findOne({
-    where: { id: req.params.id, has_company: false, status: true },
-    include: [
-      {
-        model: Vehicle,
-        as: "vehicle",
-      },
-    ],
-  })
-    .then(function (result) {
-      if (!result) return "not found";
-      else res.send(result.dataValues);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
+router.post("/refresh", (req, res) => {
+  // take the refresh token from the user
+  const refreshToken = req.body.token;
+
+  //send error if there is no token or it's invalid
+  if (!refreshToken) return res.status(401).json("You are not authenticated!");
+  if (!refreshTokens.includes(refreshToken)) {
+    return res.status(403).send({
+      err: "Refresh token is not valid!",
     });
+  }
+  jwt.verify(refreshToken, "myRefreshSecretKey", (err, admin) => {
+    err && console.log(err);
+    refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+    const newAccessToken = generateAccessToken(admin);
+    const newRefreshToken = generateRefreshToken(admin);
+    refreshTokens.push(newRefreshToken);
+    res.status(200).send({
+      // id: admin.id,
+      // first_name: admin.first_name,
+      // last_name: admin.last_name,
+      // roles: admin.roles,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+  });
 });
 
-router.get("/:id/companies", (req, res) => {
-  User.findOne({
-    where: { id: req.params.id, has_company: true, status: true },
-    include: [
-      {
-        model: Company,
-        as: "companies",
-        include: [
-          {
-            model: Vehicle,
-            as: "vehicles",
-          },
-        ],
-      },
-    ],
-  })
-    .then(function (result) {
-      if (!result) return "not found";
-      else res.send(result.dataValues);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
+router.post("/logout", verifyAdminToken, (req, res) => {
+  const refreshToken = req.body.token;
+  refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+  res.status(200).json("You logged out successfully.");
+});
+
+router.delete("/user/:userId", verifyAdminToken, (req, res) => {
+  res
+    .status(200)
+    .send({ msg: req.params.userId + " => User has been deleted." });
+  // if (req.user.id === req.params.userId || req.user.isAdmin) {
+  //   // if roles ...
+  //   res.status(200).json("User has been deleted.");
+  // } else {
+  //   res.status(403).json("You are not allowed to delete this user!");
+  // }
 });
 
 module.exports = router;
