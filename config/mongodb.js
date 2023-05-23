@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 // se connecter à Mongodb
 mongoose.connect(
-  "mongodb://localhost:27017,localhost:27020,localhost:27021/db_gps?replicaSet=r2",
+  "mongodb://admin:adminpassword@64.226.124.200:27017/db_gps",
   (err) => {
     if (!err) console.log("MongoDB connection succeeded.");
     else
