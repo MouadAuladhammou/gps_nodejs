@@ -14,6 +14,7 @@ router.get("/last_record", (req, res) => {
     });
 });
 
+/* 
 router.post("/new", (req, res) => {
   Location.create({
     vehicle_id: req.body.vehicle_id,
@@ -27,11 +28,20 @@ router.post("/new", (req, res) => {
     .catch((error) => {
       console.error(error);
     });
-});
+}); 
+*/
 
 // pagination
 router.get("/", (req, res) => {
-  let { page = 1, limit = 10, start_date, end_date, range, hour } = req?.query;
+  let {
+    imei,
+    page = 1,
+    limit = 10,
+    start_date,
+    end_date,
+    range,
+    hour,
+  } = req?.query;
 
   // initialisation des dates
   let [date, time] = start_date.split(" ");
@@ -61,25 +71,25 @@ router.get("/", (req, res) => {
   // récupération de données
   if (hour) {
     Location.find({
-      created_at: {
+      timestamp: {
         $gte: new Date(decodeURI(start_date)),
         $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
       },
     })
-      .where({ hour: hour })
-      .sort({ created_at: 1 })
+      .where({ hour: hour, imei: imei })
+      .sort({ timestamp: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .then(async (result) => {
         if (result) {
           // obtenir le nombre de pages
           let count = await Location.find({
-            created_at: {
+            timestamp: {
               $gte: new Date(decodeURI(start_date)),
               $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
             },
           })
-            .where({ hour: hour })
+            .where({ hour: hour, imei: imei })
             .countDocuments();
 
           // ajuster le nombre de pages s'il y a une plage spécifique (il s'agit de Input de type "range")
@@ -111,23 +121,26 @@ router.get("/", (req, res) => {
       });
   } else {
     Location.find({
-      created_at: {
+      timestamp: {
         $gte: new Date(decodeURI(start_date)),
         $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
       },
     })
-      .sort({ created_at: 1 })
+      .where({ imei: imei })
+      .sort({ timestamp: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .then(async (result) => {
         if (result) {
           // obtenir le nombre de pages
           let count = await Location.find({
-            created_at: {
+            timestamp: {
               $gte: new Date(decodeURI(start_date)),
               $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
             },
-          }).countDocuments();
+          })
+            .where({ imei: imei })
+            .countDocuments();
 
           // ajustez le nombre de pages s'il y a une plage spécifique (il s'agit de Input de type "range")
           if (range && range > 1) {

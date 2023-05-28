@@ -8,9 +8,17 @@ const {
 
 // model API REST
 const Location = mongoose.model("locations", {
-  vehicle_id: { type: Number, required: true },
-  latitude: { type: Number, required: true },
-  longitude: { type: Number, required: true },
+  imei: { type: Number, required: true },
+  gps: {
+    latitude: { type: Number, required: true },
+    longitude: { type: Number, required: true },
+    altitude: { type: Number },
+    angle: { type: Number },
+    satellites: { type: Number },
+    speed: { type: Number },
+  },
+  ioElements: { type: Object, required: true },
+  timestamp: { type: Date, required: true },
   hour: { type: Number, required: true },
   minute: { type: Number, required: true },
   created_at: { type: Date },

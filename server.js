@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 app.use(bodyParser.json());
+const schedule = require("node-schedule");
 
 // Socket GPS client (by TCP)
 const net = require("net");
@@ -16,6 +17,11 @@ const gpsClientsConnected = []; // enregistrer les adresses IP TCP des appareils
 const server = require("http").createServer(app);
 const io = require("socket.io")(server, { cors: { origin: "*" } });
 const connectedWebSocketsByIMEI = new Map(); // initialiser une variable pour stocker les sockets Web connéctés correspondant à un IMEI
+
+// RabbitMQ
+const amqp = require("amqplib");
+const rabbitMQUrl = "amqp://localhost"; // URL RabbitMQ
+const queueName = "gpsDataQueue"; // nom de la file d'attente (Queue) RabbitMQ
 
 // Allow cross-origin
 const cors = require("cors");
@@ -44,6 +50,104 @@ app.use("/api/admin", admin);
 app.use("/api/map", map);
 app.use("/api/geographic", geographic);
 
+(async () => {
+  // traitement en mode async ...
+})();
+
+const rule = new schedule.RecurrenceRule();
+rule.hour = 21;
+rule.minute = 47;
+schedule.scheduleJob(rule, async () => {
+  // Traitement quotidien à 21h47 ...
+});
+
+// ============================================================================================================================== //
+// =========================================================[ RabbitMQ ]========================================================= //
+// ============================================================================================================================== //
+// Créer une connexion à RabbitMQ
+const connectToRabbitMQ = async () => {
+  try {
+    const connection = await amqp.connect(rabbitMQUrl);
+    const channel = await connection.createChannel();
+    // NB: Echange (Exchange) utilisé ici est "AMQP default" avec type "direct".
+    //   Lorsqu'un message est publié à un échange de type "direct", il est routé vers les files d'attente (Queues) dont la clé de liaison correspond exactement à la clé de routage du message. Cela signifie qu'un message sera reçu uniquement par les files d'attente qui ont été explicitement liées à l'échange avec la même clé de liaison.
+    //   Il est important de noter que "AMQP defaut" est un échange par default de RabbitMQ qui son type est "direct", et que lorsqu'une file d'attente (Queue) est créée sans spécifier explicitement l'échange auquel elle est liée, elle sera automatiquement liée à cet échange par défaut.
+
+    // Créer la file d'attente si elle n'existe pas déjà
+    // NB: la création de la file d'attente ici est effectuée avec la configuration { durable: true }, ce qui signifie que la file d'attente sera durable et survivra à un redémarrage du serveur RabbitMQ.
+    await channel.assertQueue(queueName, { durable: true });
+    console.log("RabbitMQ connection succeeded.");
+    return channel;
+  } catch (error) {
+    console.error("Error connecting to RabbitMQ:", error);
+    process.exit(1); // Quitter l'application en cas d'erreur
+  }
+};
+
+// Appeler la fonction pour établir la connexion RabbitMQ
+const rabbitMQChannel = connectToRabbitMQ();
+
+// Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
+async function publishDataToQueue(imei, data) {
+  const message = {
+    imei: imei,
+    gps: data.gps,
+    ioElements: data.ioElements,
+    timestamp: data.timestamp,
+    hour: data.timestamp.getHours(),
+    minute: data.timestamp.getMinutes(),
+    created_at: new Date(),
+  };
+
+  try {
+    const channel = await rabbitMQChannel;
+
+    // Envoyer le message à RabbitMQ (exactement dans Queue)
+    channel.sendToQueue(queueName, Buffer.from(JSON.stringify(message)), {
+      persistent: true,
+    });
+  } catch (error) {
+    console.error("Error sending message to RabbitMQ:", error);
+  }
+}
+
+// Créer une connexion à RabbitMQ et consommez les messages
+const consumeMessages = async () => {
+  try {
+    const channel = await rabbitMQChannel;
+
+    // prefetch: La prélecture du canal est une fonctionnalité qui permet de spécifier combien de messages un consommateur peut recevoir et traiter simultanément à partir de la file d'attente
+    // il est utilisé pour limiter le nombre de messages préchargés par le consommateur, vous indiquez à RabbitMQ de n'envoyer qu'un seul message à la fois au consommateur
+    // chaque consommateur ne recevra qu'un seul message à la fois et ne passera au message suivant qu'après avoir traité le précédent.
+    // channel.prefetch(1);
+
+    // Consommer les messages de la file d'attente (Queue)
+    await channel.consume(queueName, async (message) => {
+      if (message !== null) {
+        try {
+          const gpsData = JSON.parse(message.content.toString());
+
+          // Insérez les données dans MongoDB
+          await Location.create(gpsData);
+          console.log("Message inserted into MongoDB:", gpsData);
+
+          // Acknowledge the message: utilisé pour confirmer au serveur RabbitMQ que le message a été traité avec succès et peut être supprimé de la file d'attente.
+          channel.ack(message);
+        } catch (error) {
+          console.error("Error:", error);
+          // Rejeter (reject) le message en cas d'erreur pour qu'il puisse être traité à nouveau
+          channel.reject(message, false);
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error connecting to RabbitMQ:", error);
+    process.exit(1); // Quitter l'application en cas d'erreur
+  }
+};
+
+consumeMessages();
+
 // ============================================================================================================================== //
 // ======================================================[ Socket GPS TCP ]====================================================== //
 // ============================================================================================================================== //
@@ -67,6 +171,9 @@ const observeChanges = (imei, values) => {
   if (!areValuesEqual(previousValues, values)) {
     // S'il a changé, effectuer l'action "next" sur la variable "gpsClientsSubject" afin qu'elle soit détectée et accessible dans le traitement du socket Web
     gpsClientsSubject.next({ imei, values });
+
+    // Envoyer les données à RabbitMQ pour consommation
+    publishDataToQueue(imei, values);
   }
 };
 
@@ -142,10 +249,13 @@ const trackingServer = net.createServer((c) => {
           }
 
           // Enregistrer les données dans la base de données MongoDB
-          // ...
+          console.log("gps", gps);
+          console.log("timestamp", timestamp);
 
-          // mettre à jour les données du client GPS avec les dernières données reçues pour etre détecté et envoyé par la suite dans les web sockets
-          observeChanges(imei, { gps, timestamp, ioElements, imei });
+          if (gps.longitude && gps.latitude) {
+            // mettre à jour les données du client GPS avec les dernières données reçues pour etre détecté et envoyé par la suite dans les web sockets
+            observeChanges(imei, { gps, timestamp, ioElements, imei });
+          }
 
           // réinitialiser le délai lorsqu'il y a des données
           c.setTimeout(CLIENT_TIMEOUT_DURATION);
@@ -273,6 +383,8 @@ setInterval(() => {
       latitude: latitude,
       longitude: longitude,
     },
+    ioElements: {},
+    timestamp: new Date(),
     created_at: "date time",
   });
 }, 5000);
