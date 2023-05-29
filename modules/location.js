@@ -3,17 +3,11 @@ var router = express.Router();
 // var ObjectId = require("mongoose").Types.ObjectId;
 var { Location } = require("../models/location");
 
-router.get("/last_record", (req, res) => {
-  Location.findOne()
-    .sort({ created_at: -1 })
-    .then(function (result) {
-      if (result) res.send(result);
-    })
-    .catch((error) => {
-      console.error("Error: ", error);
-    });
-});
-
+const {
+  isValidDateTime,
+  parseDateTime,
+  getOrSetCache,
+} = require("../utils/functions");
 /* 
 router.post("/new", (req, res) => {
   Location.create({
@@ -31,8 +25,19 @@ router.post("/new", (req, res) => {
 }); 
 */
 
+router.get("/last_record", (req, res) => {
+  Location.findOne()
+    .sort({ created_at: -1 })
+    .then(function (result) {
+      if (result) res.send(result);
+    })
+    .catch((error) => {
+      console.error("Error: ", error);
+    });
+});
+
 // pagination
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   let {
     imei,
     page = 1,
@@ -41,135 +46,80 @@ router.get("/", (req, res) => {
     end_date,
     range,
     hour,
-  } = req?.query;
+  } = req.query;
 
-  // initialisation des dates
-  let [date, time] = start_date.split(" ");
-  let [day, month, year] = date.split("/");
-  let [hours, minutes, seconds] = time.split(":");
-  start_date = new Date(+year, month - 1, +day, +hours, +minutes, +seconds);
+  // Ajouter un middleware pour vérifier si l'IMEI est pertinent pour le client actuel
+  // ...
 
-  [date, time] = end_date.split(" ");
-  [day, month, year] = date.split("/");
-  [hours, minutes, seconds] = time.split(":");
-  end_date = new Date(+year, month - 1, +day, +hours, +minutes, +seconds);
+  const dataHistory = await getOrSetCache(
+    `dataHistory?imei=${imei}&page=${page}&limit=${limit}&start_date=${start_date}&end_date=${end_date}&range=${range}&hour=${hour}`,
+    async () => {
+      let startDate, endDate;
+      if (start_date && isValidDateTime(start_date)) {
+        startDate = parseDateTime(start_date);
+      } else {
+        startDate = new Date(
+          new Date().getFullYear(),
+          new Date().getMonth() - 1,
+          1
+        );
+      }
+      if (end_date && isValidDateTime(end_date)) {
+        endDate = parseDateTime(end_date);
+      } else {
+        endDate = new Date();
+      }
 
-  // vérifier d'abord la date si elle existe, sinon l'initialisation des données doit être du mois dernier au jour en cours
-  if (!start_date)
-    start_date = new Date(
-      new Date().getFullYear(),
-      new Date().getMonth() - 1,
-      1
-    );
-  if (!end_date) end_date = new Date();
+      // ajuster limit avec range
+      if (range && range > 1) {
+        limit = limit * parseInt(range);
+      }
 
-  // adjust limit with range
-  if (range && range > 1) {
-    limit = limit * parseInt(range);
-  }
+      try {
+        const query = {
+          timestamp: { $gte: startDate, $lt: endDate },
+          imei: imei,
+          ...(hour && { hour: hour }),
+        };
 
-  // récupération de données
-  if (hour) {
-    Location.find({
-      timestamp: {
-        $gte: new Date(decodeURI(start_date)),
-        $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
-      },
-    })
-      .where({ hour: hour, imei: imei })
-      .sort({ timestamp: 1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .then(async (result) => {
-        if (result) {
-          // obtenir le nombre de pages
-          let count = await Location.find({
-            timestamp: {
-              $gte: new Date(decodeURI(start_date)),
-              $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
-            },
-          })
-            .where({ hour: hour, imei: imei })
-            .countDocuments();
+        let count = await Location.countDocuments(query);
 
-          // ajuster le nombre de pages s'il y a une plage spécifique (il s'agit de Input de type "range")
-          if (range && range > 1) {
-            count = count / parseInt(range);
-          }
+        let resultQuery = Location.find(query)
+          .sort({ timestamp: 1 })
+          .skip((page - 1) * limit)
+          .limit(limit);
 
-          // réduire les données retournées sur une plage donnée (il s'agit de Input de type "range")
-          if (range && parseInt(range) > 1) {
-            let _result = [];
-            let i = 1;
-            [...result].forEach((el) => {
-              if (i === parseInt(range)) {
-                _result.push(el);
-                i = 1;
-              } else {
-                i++;
-              }
-            });
+        let result = await resultQuery.exec();
 
-            res.send({ count, result: _result });
-          } else {
-            res.send({ count, result });
-          }
+        // ajuster le nombre de pages s'il y a une plage spécifique (il s'agit de Input de type "range")
+        if (range && range > 1) {
+          count = count / parseInt(range);
         }
-      })
-      .catch((error) => {
-        console.error("Error: ", error);
-      });
-  } else {
-    Location.find({
-      timestamp: {
-        $gte: new Date(decodeURI(start_date)),
-        $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
-      },
-    })
-      .where({ imei: imei })
-      .sort({ timestamp: 1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .then(async (result) => {
-        if (result) {
-          // obtenir le nombre de pages
-          let count = await Location.find({
-            timestamp: {
-              $gte: new Date(decodeURI(start_date)),
-              $lt: new Date(decodeURI(end_date)), // .getTime() + 1 * 24 * 60 * 60000,
-            },
-          })
-            .where({ imei: imei })
-            .countDocuments();
 
-          // ajustez le nombre de pages s'il y a une plage spécifique (il s'agit de Input de type "range")
-          if (range && range > 1) {
-            count = count / parseInt(range);
-          }
+        // réduire les données retournées sur une plage donnée (il s'agit de Input de type "range")
+        if (range && parseInt(range) > 1) {
+          let _result = [];
+          let i = 1;
+          result.forEach((el) => {
+            if (i === parseInt(range)) {
+              _result.push(el);
+              i = 1;
+            } else {
+              i++;
+            }
+          });
 
-          // réduire les données retournées sur une plage donnée (il s'agit de Input de type "range")
-          if (range && parseInt(range) > 1) {
-            let _result = [];
-            let i = 1;
-            [...result].forEach((el) => {
-              if (i === parseInt(range)) {
-                _result.push(el);
-                i = 1;
-              } else {
-                i++;
-              }
-            });
-
-            res.send({ count, result: _result });
-          } else {
-            res.send({ count, result });
-          }
+          return { count, result: _result };
+        } else {
+          return { count, result };
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error("Error: ", error);
-      });
-  }
+        res.status(500).send("Internal Server Error");
+      }
+    }
+  );
+  res.send({ ...dataHistory });
 });
 
 module.exports = router;
