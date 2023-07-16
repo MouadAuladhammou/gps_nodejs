@@ -1,45 +1,31 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/mysql");
 
-const Vehicle = sequelize.define(
-  "vehicles",
+const Group = sequelize.define(
+  "groupes",
   {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
     },
-    imei: {
+    user_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
-    },
-    groupe_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: "groupes",
+      references: "users",
       referencesKey: "id",
     },
-    make: {
+    setting_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: "settings",
+      referencesKey: "id",
+    },
+    name: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    model: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    year: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    mileage: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    type: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    registration_number: {
+    description: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -47,4 +33,4 @@ const Vehicle = sequelize.define(
   { timestamps: false }
 );
 
-module.exports = { Vehicle };
+module.exports = { Group };

@@ -1,6 +1,7 @@
 const express = require("express");
 var router = express.Router();
-var { Admin } = require("../models/admin");
+const { Admin, User } = require("../models/index.js");
+
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { Op } = require("sequelize");
@@ -106,7 +107,6 @@ router.post("/add", (req, res) => {
     has_company: req.body.has_company,
   })
     .then((result) => {
-      console.log("result", result);
       let payload = { subject: result.id };
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_DURING,

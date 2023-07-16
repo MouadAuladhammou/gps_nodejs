@@ -12,40 +12,71 @@ CREATE TABLE users (
     cell_phone varchar(15) NOT NULL UNIQUE,
     work_phone varchar(15) UNIQUE,
     password varchar(255) NOT NULL,
-    has_company TINYINT(1) NOT NULL,
     status TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id)
 );
 
-CREATE TABLE companies (
+CREATE TABLE settings (
     id int NOT NULL AUTO_INCREMENT,
-    user_id int NOT NULL, -- sera rempli si l'utilisateur a une entreprise (personne morale)
-    company_name varchar(255) UNIQUE,
-    company_address varchar(255),
-    company_website varchar(255),
-    company_description TEXT,
+    name varchar(255) NOT NULL UNIQUE,
+    description varchar(400) NOT NULL,
+    status TINYINT(1) DEFAULT 1,
+    user_id int NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE rules (
+    id int NOT NULL AUTO_INCREMENT,
+    name varchar(255) NOT NULL UNIQUE,
+    description varchar(400) DEFAULT NULL,
+    type int NOT NULL, -- select : Geo zone (entré ou sortie) | Speed limit (km/h) | fuel consumption (L/j) | travel distance (Km/j)
+    params TEXT DEFAULT NULL,
+    value varchar(255) NOT NULL,
+    user_id int NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE setting_rules (
+    id int NOT NULL AUTO_INCREMENT,
+    setting_id int NOT NULL,
+    rule_id int NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (setting_id) REFERENCES settings(id) ON DELETE CASCADE,
+    FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE,
+    UNIQUE (setting_id, rule_id)
+);
+
+CREATE TABLE groupes (
+    id int NOT NULL AUTO_INCREMENT,
+    user_id int DEFAULT NULL,
+    setting_id int DEFAULT NULL,
+    name varchar(255) NOT NULL UNIQUE,
+    description varchar(400) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (setting_id) REFERENCES settings(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE vehicles (
     id int NOT NULL AUTO_INCREMENT,
-    user_id int DEFAULT NULL, -- sera rempli si l'utilisateur n'a pas d'entreprise (personne physique)
-    company_id int DEFAULT NULL, -- sera rempli si l'utilisateur a une entreprise (personne morale)
+    imei varchar(255) NOT NULL UNIQUE,
+    groupe_id int DEFAULT NULL,
     make varchar(50) NOT NULL,
     model varchar(50) NOT NULL,
     year SMALLINT(4) NOT NULL,
     mileage int NOT NULL,
     type varchar(15) NOT NULL,
+    registration_number varchar(15) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+    FOREIGN KEY (groupe_id) REFERENCES groupes(id) ON DELETE CASCADE,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE geo_parameters (

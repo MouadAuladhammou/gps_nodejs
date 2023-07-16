@@ -2,6 +2,8 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 app.use(bodyParser.json());
+// const expressDelay = require("express-delay");
+// app.use(expressDelay(5000)); // toutes les réponses seront retardées de 5 secondes grâce au middleware "express-delay".
 const schedule = require("node-schedule");
 
 // Socket GPS client (by TCP)
@@ -37,11 +39,18 @@ var { Location } = require("./models/location.js");
 
 // Modules
 const location = require("./modules/location.js");
-const location_graphql = require("./modules/location_graphql.js"); // GraphQL
+// const location_graphql = require("./modules/location_graphql.js"); // GraphQL
 const user = require("./modules/user.js");
 const admin = require("./modules/admin.js");
 const map = require("./modules/map.js");
 const geographic = require("./modules/geographic.js");
+const group = require("./modules/group.js");
+const rules = require("./modules/rule.js");
+const settings = require("./modules/settings.js");
+
+// Middleware avec un délai de timeout de 5 secondes
+var timeout = require("connect-timeout");
+app.use(timeout("60s"));
 
 // routes API :
 app.use("/api/locations", location);
@@ -49,6 +58,9 @@ app.use("/api/users", user);
 app.use("/api/admin", admin);
 app.use("/api/map", map);
 app.use("/api/geographic", geographic);
+app.use("/api/groups", group);
+app.use("/api/rules", rules);
+app.use("/api/settings", settings);
 
 (async () => {
   // traitement en mode async ...
@@ -369,8 +381,8 @@ server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 // ============================================================================================================================== //
 // Ceci juste pour tester les envois
 /*
-let latitude = 35.679052;
-let longitude = -5.329702;
+let latitude = 35.6791;
+let longitude = -5.3291;
 setInterval(() => {
   // Tâche à exécuter toutes les 3 secondes
   console.log("observeChanges");

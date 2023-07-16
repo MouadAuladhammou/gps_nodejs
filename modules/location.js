@@ -1,13 +1,14 @@
 const express = require("express");
 var router = express.Router();
 // var ObjectId = require("mongoose").Types.ObjectId;
-var { Location } = require("../models/location");
+const { Location } = require("../models/location.js");
 
 const {
   isValidDateTime,
   parseDateTime,
   getOrSetCache,
 } = require("../utils/functions");
+
 /* 
 router.post("/new", (req, res) => {
   Location.create({
@@ -25,8 +26,10 @@ router.post("/new", (req, res) => {
 }); 
 */
 
-router.get("/last_record", (req, res) => {
+router.get("/last-record/:imei", (req, res) => {
+  const imei = req.params.imei;
   Location.findOne()
+    .where({ imei })
     .sort({ created_at: -1 })
     .then(function (result) {
       if (result) res.send(result);

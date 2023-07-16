@@ -1,8 +1,8 @@
 const express = require("express");
 var router = express.Router();
-var { User } = require("../models/user");
-var { Vehicle } = require("../models/vehicle");
-var { Company } = require("../models/company");
+const { User, Vehicle } = require("../models/index.js");
+const { verifyToken } = require("../middleware/check_token");
+
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { Op } = require("sequelize");
@@ -91,6 +91,26 @@ router.delete("/delete/:id", (req, res) => {
 });
 
 // User
+router.get("/logged-in", verifyToken, (req, res) => {
+  if (!res.headersSent) {
+    if (req.userId) {
+      // Obtenir les informations de l'utilisateur actuel, puis les inclure dans la réponse
+      User.findOne({ where: { id: req.userId } })
+        .then(function (result) {
+          if (result) {
+            res.status(200).send({
+              id: req.userId,
+              name: `${result.first_name} ${result.last_name}`,
+            });
+          } else res.status(401).send({ Error: "Invalid data" });
+        })
+        .catch((error) => {
+          console.error("Error : ", error);
+        });
+    }
+  }
+});
+
 router.post("/register", (req, res) => {
   User.create({
     last_name: req.body.last_name,
@@ -213,31 +233,6 @@ router.get("/:id/vehicle", (req, res) => {
       {
         model: Vehicle,
         as: "vehicle",
-      },
-    ],
-  })
-    .then(function (result) {
-      if (!result) return "not found";
-      else res.send(result.dataValues);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
-});
-
-router.get("/:id/companies", (req, res) => {
-  User.findOne({
-    where: { id: req.params.id, has_company: true, status: true },
-    include: [
-      {
-        model: Company,
-        as: "companies",
-        include: [
-          {
-            model: Vehicle,
-            as: "vehicles",
-          },
-        ],
       },
     ],
   })

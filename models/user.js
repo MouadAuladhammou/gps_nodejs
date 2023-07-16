@@ -1,11 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/mysql");
 
-// Models
-var { Vehicle } = require("../models/vehicle");
-var { Company } = require("../models/company");
-var { GeoParameter } = require("../models/geographic");
-
 const User = sequelize.define(
   "users",
   {
@@ -66,29 +61,4 @@ const User = sequelize.define(
   { timestamps: false }
 );
 
-// Set relationship
-User.hasMany(Company, {
-  foreignKey: "user_id",
-  as: "companies",
-});
-
-User.hasOne(Vehicle, {
-  foreignKey: "user_id",
-  as: "vehicle",
-});
-
-User.hasOne(GeoParameter, {
-  foreignKey: "user_id",
-  as: "geo_parameter",
-});
-
 module.exports = { User };
-
-/* 
-// C'est juste créer une table si elle n'existe pas
-sequelize.sync().then(() => {
-  console.log('Book table created successfully!');
-}).catch((error) => {
-  console.error('Unable to create table : ', error);
-}); 
-*/
