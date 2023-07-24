@@ -2,6 +2,7 @@ const express = require("express");
 var router = express.Router();
 // var ObjectId = require("mongoose").Types.ObjectId;
 var { GeoConfiguration, GeoParameter } = require("../models/geographic");
+const { verifyToken } = require("../middleware/check_token");
 
 router.post("/store/parameter", (req, res) => {
   GeoParameter.create({
@@ -48,10 +49,10 @@ router.post("/store/configuration/point", (req, res) => {
 });
 
 // store polygon
-router.post("/store/configuration/polygon", (req, res) => {
+router.post("/store/configuration/polygon", verifyToken, (req, res) => {
   const polygonJson = req.body;
   GeoConfiguration.findOneAndUpdate(
-    { user_id: 1 },
+    { user_id: req.userId },
     {
       $push: {
         polygons: polygonJson,

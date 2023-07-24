@@ -8,6 +8,11 @@ const { Rule } = require("./rule.js");
 const { SettingRule } = require("./setting_rule.js");
 
 // Set relationship
+User.hasMany(Group, {
+  foreignKey: "user_id",
+  as: "groupes",
+});
+
 Setting.hasMany(Group, {
   foreignKey: "setting_id",
   as: "groupes",
@@ -31,11 +36,6 @@ Vehicle.belongsTo(Group, {
 User.hasOne(GeoParameter, {
   foreignKey: "user_id",
   as: "geo_parameter",
-});
-
-User.hasMany(Group, {
-  foreignKey: "user_id",
-  as: "groupes",
 });
 
 Setting.belongsToMany(Rule, {

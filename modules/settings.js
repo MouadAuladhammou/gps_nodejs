@@ -96,13 +96,12 @@ router.post("/update/:id", verifyToken, async (req, res) => {
         id: ruleIds,
         user_id: req.userId, // Vérifiez si les règles sont pour l'utilisateur actuel
       },
-      transaction,
     });
     if (rules.length !== ruleIds.length) {
       throw new Error("Une ou plusieurs règles n'existent pas");
     }
 
-    const [rowsUpdated] = await Setting.update(
+    await Setting.update(
       {
         name,
         description,
@@ -112,10 +111,6 @@ router.post("/update/:id", verifyToken, async (req, res) => {
       },
       { transaction }
     );
-
-    if (rowsUpdated === 0) {
-      throw new Error("Setting introuvable");
-    }
 
     const setting = await Setting.findByPk(req.params.id);
     await setting.removeRules(await setting.getRules(), { transaction });

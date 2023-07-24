@@ -5,6 +5,11 @@ app.use(bodyParser.json());
 // const expressDelay = require("express-delay");
 // app.use(expressDelay(5000)); // toutes les réponses seront retardées de 5 secondes grâce au middleware "express-delay".
 const schedule = require("node-schedule");
+const pointInPolygon = require("point-in-polygon");
+
+const { getOrSetCache } = require("./utils/functions");
+const { GeoConfiguration } = require("./models/geographic.js");
+const { Vehicle, Setting, Group, Rule } = require("./models/index.js");
 
 // Socket GPS client (by TCP)
 const net = require("net");
@@ -237,7 +242,7 @@ const trackingServer = net.createServer((c) => {
       let parser = new Parser(buffer);
       if (parser.isImei) {
         imei = parser.imei;
-        observeChanges(parser.imei, { imei: parser.imei });
+        // observeChanges(parser.imei, { imei: parser.imei });
         c.write(Buffer.alloc(1, 1)); // send ACK for IMEI
         console.log("client device imei connected : " + parser.imei);
         gpsClientsConnected.push(c.remoteAddress + ":" + c.remotePort);
@@ -357,8 +362,182 @@ io.on("connection", (socket) => {
   });
 });
 
-// Détecter les données qui ont changé depuis un IMEI, puis à les envoyer à tous les sockets Web pertinents
-gpsClientsSubject.subscribe(({ imei, values }) => {
+// Détecter les données qui ont changé depuis un IMEI, puis à les envoyer à tous les sockets Web pertinents (NB: incluant les sockets de type "notif")
+// NB: "values" ce sont des données qui sont envoyées par l'appareil GPS
+gpsClientsSubject.subscribe(async ({ imei, values }) => {
+  // Récupérer les paramètres de notifications de IMEI depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
+
+  // Initialisation de données de notification selon les règles (étape 1) :
+  // ======================================================================
+  const vehicleWithSettings = await getOrSetCache(
+    `dataSettings?imei=${imei}`,
+    async () => {
+      try {
+        const dataSettings = await Vehicle.findOne({
+          where: { imei: imei },
+          include: [
+            {
+              model: Group,
+              as: "group",
+              attributes: ["name"],
+              include: [
+                {
+                  model: Setting,
+                  as: "setting",
+                  attributes: ["name"],
+                  include: [
+                    {
+                      model: Rule,
+                      as: "rules",
+                      attributes: ["id", "name", "type", "value", "params"],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        });
+
+        const rules = dataSettings?.group?.setting?.rules || [];
+        if (rules.length > 0) {
+          // ============ Initialize Type:1 => Geo zone ============ //
+          // NB: "rule.value" est équivalente au champ "polygon.properties.id" (dans MongoDB) qui est un champ unique qui contient la valeur "timestamp" de la création, concaténé avec le "userid" à la fin
+          const ruleValues = rules
+            .filter((rule) => rule.type === 1)
+            .map((rule) => rule.value);
+
+          if (ruleValues.length > 0) {
+            // ici il récupére un seul document complet de la collection "geo_configurations" de l'utilisateur concerné qui contient tous les polygons d'utilisateur possibles
+            //   NB: "ruleValues" ne contiennent que les "ids" de polygones de l'utilisateur concérné provenant de son document "geo_configurations" en fonction de la valeur IMEI qui est unique et attribuée à un seul utilisateur
+            // NB: On fait destruct pour se débarrasser de l'objet "_id". car meme on a fait: select("polygons"); mais cela est retourné avec un "_id"
+            const { polygons } = await GeoConfiguration.findOne({
+              "polygons.properties.id": { $in: ruleValues },
+            }).select("polygons");
+
+            // comparer les "rule values" de IMEI de Mysql avec ce qui est renvoyé par MongoDB pour récupérer les coordonnées du polygon concerné
+            if (polygons && polygons.length > 0) {
+              for (const rule of rules) {
+                if (rule.type === 1) {
+                  const matchingPolygon = polygons.find(
+                    (polygon) => polygon.properties.id == rule.value
+                  );
+
+                  if (matchingPolygon) {
+                    // NB: lorsque modifier "rule.polygon = polygon", cela affectera automatiquement la variable "dataSettings?.group?.setting?.rules" car "rules" est une référence à la même instance de l'objet que "dataSettings?.group?.setting?.rules"
+                    rule.polygon = matchingPolygon;
+                    rule.dataValues.polygon = matchingPolygon; // c'est pour le cas de l'exécution d'une récupération de données de MongodDB
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        return dataSettings;
+      } catch (error) {
+        console.error("Error: ", error);
+        res.status(500).send("Internal Server Error");
+      }
+    }
+  );
+
+  // Gestion des notifications (étape 2) :
+  // =====================================
+  if (!values.notifications) {
+    values.notifications = [];
+  }
+  (vehicleWithSettings.group.setting.rules || []).map((rule) => {
+    // ============ Type:1 => Geo zone ============ //
+    if (rule.type === 1 && rule.polygon?.geometry?.coordinates) {
+      // Définir les coordonnées du point et du polygone
+      const point = [values.gps.longitude, values.gps.latitude];
+      const polygonCoordinates = rule.polygon.geometry.coordinates[0];
+      // Vérifier si le point se trouve à l'intérieur du polygone, si c'est le cas initialiser la variable "notify" à la variable "values" pour envoyer la notification
+      if (
+        pointInPolygon(point, polygonCoordinates) &&
+        rule.params === "entry"
+      ) {
+        values.notifications.push({
+          show: true,
+          type: 1,
+          message: `Le véhicule ${vehicleWithSettings.make} ${
+            vehicleWithSettings.make
+          } ${vehicleWithSettings.model} d'immatriculation: ${
+            vehicleWithSettings.registration_number
+          } est à l'intérieur du polygone ${
+            rule.polygon?.properties.desc || rule.polygon?.properties.id
+          }`,
+        });
+      }
+      if (
+        !pointInPolygon(point, polygonCoordinates) &&
+        rule.params === "exit"
+      ) {
+        values.notifications.push({
+          show: true,
+          type: 1,
+          message: `Le véhicule ${vehicleWithSettings.make} ${
+            vehicleWithSettings.make
+          } ${vehicleWithSettings.model} d'immatriculation: ${
+            vehicleWithSettings.registration_number
+          } est à l'extérieur du polygone ${
+            rule.polygon?.properties.desc || rule.polygon?.properties.id
+          }`,
+        });
+      }
+
+      // ============ Type:2 => Speed limit ============ //
+    } else if (rule.type === 2) {
+      // if (rule.value > values?.gps?.Speed) {
+      //   values.notifications.push({
+      //     show: true,
+      //     type: 2,
+      //     message: `Le véhicule ${vehicleWithSettings.registration_number} a dépassé la limite de vitesse de ${values?.gps?.Speed} Km/h`,
+      //   });
+      // }
+      // ============ Type:3 => fuel consumption ============ //
+    } else if (rule.type === 3) {
+      // if (rule.value > values?.XXX) {
+      //   values.notifications.push({
+      //     show: true,
+      //     type: 3,
+      //     message: `Le véhicule ${vehicleWithSettings.registration_number} a dépassé sa consommation de gasoil qui est fixée à ${values?.gps?.Speed} litres`,
+      //   });
+      // }
+      // ============ Type:4 => travel distance ============ //
+    } else if (rule.type === 4) {
+      // if (rule.value > values?.XXX) {
+      //   values.notifications.push({
+      //     show: true,
+      //     type: 4,
+      //     message: `Le véhicule ${vehicleWithSettings.registration_number} a dépassé le kilométrage fixé de ${values?.gps?.Speed} Km/jour`,
+      //   });
+      // }
+    }
+  });
+
+  // Envoyer des notifications (étape 3) :
+  // =====================================
+  const socketsForImeiNotif = connectedWebSocketsByIMEI.get(imei + "_notif");
+  if (socketsForImeiNotif) {
+    socketsForImeiNotif.forEach((socket) => {
+      if (
+        values.hasOwnProperty("notifications") &&
+        values.notifications.length > 0
+      ) {
+        console.log(
+          "clientData - send notification:",
+          "device_imei_" + imei + "_notif",
+          values.imei,
+          "dans la socket :",
+          socket.id
+        );
+        socket.emit("device_imei_" + imei + "_notif", JSON.stringify(values));
+      }
+    });
+  }
+
+  // Envoyer les données de localisation
   const socketsForImei = connectedWebSocketsByIMEI.get(imei);
   if (socketsForImei) {
     socketsForImei.forEach((socket) => {
@@ -394,6 +573,7 @@ setInterval(() => {
     gps: {
       latitude: latitude,
       longitude: longitude,
+      Speed: 100,
     },
     ioElements: {},
     timestamp: new Date(),

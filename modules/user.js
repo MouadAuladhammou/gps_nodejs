@@ -1,6 +1,6 @@
 const express = require("express");
 var router = express.Router();
-const { User, Vehicle } = require("../models/index.js");
+const { User, Group, Vehicle } = require("../models/index.js");
 const { verifyToken } = require("../middleware/check_token");
 
 const jwt = require("jsonwebtoken");
@@ -95,12 +95,25 @@ router.get("/logged-in", verifyToken, (req, res) => {
   if (!res.headersSent) {
     if (req.userId) {
       // Obtenir les informations de l'utilisateur actuel, puis les inclure dans la réponse
-      User.findOne({ where: { id: req.userId } })
-        .then(function (result) {
-          if (result) {
+      User.findOne({
+        where: { id: req.userId },
+        include: [
+          {
+            model: Group,
+            as: "groupes",
+            include: [
+              {
+                model: Vehicle,
+                as: "vehicles",
+              },
+            ],
+          },
+        ],
+      })
+        .then(function (user) {
+          if (user) {
             res.status(200).send({
-              id: req.userId,
-              name: `${result.first_name} ${result.last_name}`,
+              user,
             });
           } else res.status(401).send({ Error: "Invalid data" });
         })
@@ -145,6 +158,18 @@ router.post("/login", (req, res) => {
   let user = req.body;
   User.findOne({
     where: { email: user.email, password: user.password },
+    include: [
+      {
+        model: Group,
+        as: "groupes",
+        include: [
+          {
+            model: Vehicle,
+            as: "vehicles",
+          },
+        ],
+      },
+    ],
   })
     .then(function (user) {
       if (!user) {

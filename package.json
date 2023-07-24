@@ -30,6 +30,7 @@
     "mysql2": "^2.3.3",
     "node-cron": "^3.0.2",
     "node-schedule": "^2.1.1",
+    "point-in-polygon": "^1.1.0",
     "redis": "^4.6.6",
     "rxjs": "^7.8.1",
     "sequelize": "^6.24.0",
