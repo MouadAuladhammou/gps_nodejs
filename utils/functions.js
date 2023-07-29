@@ -1,5 +1,5 @@
 const redisClientPromise = require("../config/redis");
-const DEFAULT_CACHE_EXPIRATION = process.env.DEFAULT_CACHE_EXPIRATION || 20; // secondes
+const DEFAULT_CACHE_EXPIRATION = process.env.DEFAULT_CACHE_EXPIRATION || 120; // secondes
 
 // Fonction pour vérifier la validité d'une date et heure
 const isValidDateTime = (dateTimeString) => {

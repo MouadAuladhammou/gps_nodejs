@@ -20,9 +20,9 @@ router.post("/store/parameter", (req, res) => {
 
 // ===================================================[GET ALL CONFIG GEOJSON]=================================================== //
 // récupérer tous les éléments geoJson
-router.get("/configuration/:id", async (req, res) => {
+router.get("/configuration", verifyToken, async (req, res) => {
   try {
-    const userId = req.params.id;
+    const userId = req.userId;
     const geoJson = await GeoConfiguration.findOne({ user_id: userId });
     if (geoJson) res.send({ geoJson });
   } catch (error) {

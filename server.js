@@ -367,13 +367,13 @@ io.on("connection", (socket) => {
 gpsClientsSubject.subscribe(async ({ imei, values }) => {
   // Récupérer les paramètres de notifications de IMEI depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
 
-  // Initialisation de données de notification selon les règles (étape 1) :
-  // ======================================================================
+  // Initialisation de données de notification (étape 1) :
+  // ====================================================
   const vehicleWithSettings = await getOrSetCache(
     `dataSettings?imei=${imei}`,
     async () => {
       try {
-        const dataSettings = await Vehicle.findOne({
+        const vehicleInstance = await Vehicle.findOne({
           where: { imei: imei },
           include: [
             {
@@ -398,6 +398,7 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
           ],
         });
 
+        const dataSettings = vehicleInstance.get(); // récupérer les données sous forme d'objet JavaScript simple
         const rules = dataSettings?.group?.setting?.rules || [];
         if (rules.length > 0) {
           // ============ Initialize Type:1 => Geo zone ============ //
@@ -431,6 +432,30 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
               }
             }
           }
+
+          // ============ Initialize Type:4 => travel distance ============ //
+          // récupérer le dernier historique de localisation enregistré dans mongodb (locations) pour calculer la distance parcourue de jour en cours
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          yesterday.setHours(0, 0, 0, 0); // Début de la journée d'hier
+          const endOfYesterday = new Date(yesterday);
+          endOfYesterday.setHours(23, 59, 59, 999); // Fin de la journée d'hier
+
+          const lastRecordLocation = await Location.findOne({
+            imei: imei,
+            timestamp: {
+              $gte: yesterday, // Date de début d'hier
+              $lte: endOfYesterday, // Date de fin d'hier
+            },
+          })
+            .select("ioElements") // Sélectionner uniquement la propriété "ioElements"
+            .sort({ timestamp: -1 }) // Trier par ordre décroissant de "timestamp" pour obtenir le dernier enregistrement
+            .exec();
+
+          const totalOdometerValue =
+            lastRecordLocation?.ioElements?.["Total Odometer"] ?? 0;
+
+          dataSettings.totalOdometerValue = totalOdometerValue || 0; // s'il n'y a pas d'enregistrements pour hier, initialiser à 0
         }
 
         return dataSettings;
@@ -488,13 +513,13 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
 
       // ============ Type:2 => Speed limit ============ //
     } else if (rule.type === 2) {
-      // if (rule.value > values?.gps?.Speed) {
-      //   values.notifications.push({
-      //     show: true,
-      //     type: 2,
-      //     message: `Le véhicule ${vehicleWithSettings.registration_number} a dépassé la limite de vitesse de ${values?.gps?.Speed} Km/h`,
-      //   });
-      // }
+      if (parseInt(values?.gps?.speed) > parseInt(rule.value)) {
+        values.notifications.push({
+          show: true,
+          type: 2,
+          message: `Le véhicule ${vehicleWithSettings.registration_number} a dépassé la limite de vitesse de ${rule.value} Km/h en atteignant ${values.gps.speed} km/h`,
+        });
+      }
       // ============ Type:3 => fuel consumption ============ //
     } else if (rule.type === 3) {
       // if (rule.value > values?.XXX) {
@@ -506,13 +531,22 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
       // }
       // ============ Type:4 => travel distance ============ //
     } else if (rule.type === 4) {
-      // if (rule.value > values?.XXX) {
-      //   values.notifications.push({
-      //     show: true,
-      //     type: 4,
-      //     message: `Le véhicule ${vehicleWithSettings.registration_number} a dépassé le kilométrage fixé de ${values?.gps?.Speed} Km/jour`,
-      //   });
-      // }
+      const currentTotalOdometer = parseInt(
+        values?.ioElements["Total Odometer"]
+      );
+      const vehicleTotalOdometer = parseInt(
+        vehicleWithSettings.totalOdometerValue
+      );
+      const exceededValue = currentTotalOdometer - vehicleTotalOdometer;
+      if (exceededValue > rule.value) {
+        const registrationNumber = vehicleWithSettings.registration_number;
+        const message = `Le véhicule ${registrationNumber} a dépassé le kilométrage fixé de ${rule.value} Km/jour en atteignant ${exceededValue} Km/jour`;
+        values.notifications.push({
+          show: true,
+          type: 4,
+          message: message,
+        });
+      }
     }
   });
 
