@@ -1,7 +1,8 @@
 const express = require("express");
 var router = express.Router();
+const { verifyToken } = require("../middleware/check_token");
 // var ObjectId = require("mongoose").Types.ObjectId;
-const { Location } = require("../models/location.js");
+const { createLocationModel } = require("../models/location.js");
 
 const {
   isValidDateTime,
@@ -26,8 +27,9 @@ router.post("/new", (req, res) => {
 }); 
 */
 
-router.get("/last-record/:imei", (req, res) => {
+router.get("/last-record/:imei", verifyToken, (req, res) => {
   const imei = req.params.imei;
+  const Location = createLocationModel(req.userId);
   Location.findOne()
     .where({ imei })
     .sort({ created_at: -1 })
@@ -40,7 +42,7 @@ router.get("/last-record/:imei", (req, res) => {
 });
 
 // pagination
-router.get("/", async (req, res) => {
+router.get("/", verifyToken, async (req, res) => {
   let {
     imei,
     page = 1,
@@ -51,12 +53,10 @@ router.get("/", async (req, res) => {
     hour,
   } = req.query;
 
-  // Ajouter un middleware pour vérifier si l'IMEI est pertinent pour le client actuel
-  // ...
-
   const dataHistory = await getOrSetCache(
     `dataHistory?imei=${imei}&page=${page}&limit=${limit}&start_date=${start_date}&end_date=${end_date}&range=${range}&hour=${hour}`,
     async () => {
+      const Location = createLocationModel(req.userId);
       let startDate, endDate;
       if (start_date && isValidDateTime(start_date)) {
         startDate = parseDateTime(start_date);

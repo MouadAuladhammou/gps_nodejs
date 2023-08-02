@@ -1,11 +1,12 @@
 const express = require("express");
 var router = express.Router();
+const { verifyToken } = require("../middleware/check_token");
 const { Setting, Group, Vehicle } = require("../models/index.js");
 
 // récupérer tous les éléments pour "recap" (groupes avec ses vehicles )
-router.get("/user/:id", async (req, res) => {
+router.get("/user", verifyToken, async (req, res) => {
   try {
-    const userId = req.params.id;
+    const userId = req.userId;
     const groupsWithVehicles = await Group.findAll({
       attributes: ["id", "user_id", "name", "vehicles.imei"], // Sélectionnez les attributs à inclure dans le résultat
       where: { user_id: userId },

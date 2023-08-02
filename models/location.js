@@ -6,23 +6,40 @@ const {
   GraphQLInt,
 } = require("graphql");
 
+// Utiliser une Map pour stocker les modèles créés
+const modelsMap = new Map();
+
 // model API REST
-const Location = mongoose.model("locations", {
-  imei: { type: Number, required: true },
-  gps: {
-    latitude: { type: Number, required: true },
-    longitude: { type: Number, required: true },
-    altitude: { type: Number },
-    angle: { type: Number },
-    satellites: { type: Number },
-    speed: { type: Number },
-  },
-  ioElements: { type: Object, required: true },
-  timestamp: { type: Date, required: true },
-  hour: { type: Number, required: true },
-  minute: { type: Number, required: true },
-  created_at: { type: Date },
-});
+const createLocationModel = (userId) => {
+  const collectionName = `user_${userId}__locations`;
+
+  // Vérifier si le modèle a déjà été créé pour cette collection
+  if (modelsMap.has(collectionName)) {
+    return modelsMap.get(collectionName);
+  }
+
+  const Location = mongoose.model(collectionName, {
+    imei: { type: Number, required: true },
+    gps: {
+      latitude: { type: Number, required: true },
+      longitude: { type: Number, required: true },
+      altitude: { type: Number },
+      angle: { type: Number },
+      satellites: { type: Number },
+      speed: { type: Number },
+    },
+    ioElements: { type: Object, required: true },
+    timestamp: { type: Date, required: true },
+    hour: { type: Number, required: true },
+    minute: { type: Number, required: true },
+    created_at: { type: Date },
+  });
+
+  // Stocker le modèle créé dans la Map pour les utilisations futures
+  modelsMap.set(collectionName, Location);
+
+  return Location;
+};
 
 // model API GraphQL
 const LocationGraphQL = new GraphQLObjectType({
@@ -39,6 +56,6 @@ const LocationGraphQL = new GraphQLObjectType({
 });
 
 module.exports = {
-  Location,
+  createLocationModel,
   LocationGraphQL,
 };

@@ -40,7 +40,7 @@ require("./config/mongodb.js");
 require("./config/mysql.js");
 
 // Models
-var { Location } = require("./models/location.js");
+const { createLocationModel } = require("./models/location.js");
 
 // Modules
 const location = require("./modules/location.js");
@@ -144,12 +144,79 @@ const consumeMessages = async () => {
         try {
           const gpsData = JSON.parse(message.content.toString());
 
-          // Insérez les données dans MongoDB
-          await Location.create(gpsData);
-          console.log("Message inserted into MongoDB:", gpsData);
+          // Rappelle: chaque ustilisateur a sa propre collection contenant les données de ses véhicules (les données de GPS)
+          const cachedVehiclesGroupedByUser = await getOrSetCache(
+            `vehiclesGroupedByUser`,
+            async () => {
+              try {
+                const vehicles = await Vehicle.findAll({
+                  include: [
+                    {
+                      model: Group,
+                      as: "group",
+                      attributes: ["name", "user_id"],
+                    },
+                  ],
+                });
 
-          // Acknowledge the message: utilisé pour confirmer au serveur RabbitMQ que le message a été traité avec succès et peut être supprimé de la file d'attente.
-          channel.ack(message);
+                const vehiclesAsJson = vehicles.map((vehicle) =>
+                  vehicle.toJSON()
+                );
+
+                // Créer un objet Map pour grouper les véhicules par utilisateur
+                const vehiclesGroupedByUser = new Map();
+
+                vehiclesAsJson.forEach((vehicle) => {
+                  const userId = vehicle.group.user_id; // Utiliser "user_id" de la relation pour récupérer l'ID de l'utilisateur
+                  if (!vehiclesGroupedByUser.has(userId)) {
+                    // Si l'utilisateur n'existe pas encore dans l'objet Map, ajouter une nouvelle entrée avec un tableau vide pour stocker ses véhicules
+                    vehiclesGroupedByUser.set(userId, []);
+                  }
+                  // Ajouter le véhicule au tableau correspondant à l'utilisateur
+                  vehiclesGroupedByUser.get(userId).push(vehicle);
+                });
+
+                const vehiclesGroupedByUserObj = Object.fromEntries(
+                  vehiclesGroupedByUser
+                );
+
+                return vehiclesGroupedByUserObj;
+              } catch (error) {
+                console.error("Error: ", error);
+                throw new Error("Internal Server Error");
+              }
+            }
+          );
+
+          // Trouver le véhicule associé à l'IMEI
+          const { imei } = gpsData;
+          let vehicleAssociatedWithImei = null;
+
+          // Utiliser Array.prototype.some() pour chercher le véhicule correspondant à l'IMEI
+          Object.values(cachedVehiclesGroupedByUser).some((vehicles) => {
+            vehicleAssociatedWithImei = vehicles.find(
+              (vehicle) => vehicle.imei === imei
+            );
+            return !!vehicleAssociatedWithImei; // Renvoie true pour sortir de la boucle si un véhicule est trouvé
+          });
+
+          if (vehicleAssociatedWithImei) {
+            const userId = vehicleAssociatedWithImei.group.user_id; // Utiliser "user_id" pour déterminer le nom de la collection
+            // Créer le modèle pour la collection 'user_x__locations'
+            const Location = createLocationModel(userId);
+            // Insérer les données dans MongoDB
+            await Location.create(gpsData);
+            console.log(
+              `Message inserted into MongoDB in collection: user_${userId}__locations`,
+              gpsData
+            );
+
+            // Acknowledge the message: utilisé pour confirmer au serveur RabbitMQ que le message a été traité avec succès et peut être supprimé de la file d'attente.
+            channel.ack(message);
+          } else {
+            // Gérer le cas où l'IMEI n'est pas trouvé dans les véhicules
+            throw new Error("IMEI not found in vehicles.");
+          }
         } catch (error) {
           console.error("Error:", error);
           // Rejeter (reject) le message en cas d'erreur pour qu'il puisse être traité à nouveau
@@ -379,7 +446,7 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
             {
               model: Group,
               as: "group",
-              attributes: ["name"],
+              attributes: ["name", "user_id"],
               include: [
                 {
                   model: Setting,
@@ -441,6 +508,8 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
           const endOfYesterday = new Date(yesterday);
           endOfYesterday.setHours(23, 59, 59, 999); // Fin de la journée d'hier
 
+          // Créer le modèle pour la collection 'user_1__locations'
+          const Location = createLocationModel(dataSettings.group.user_id);
           const lastRecordLocation = await Location.findOne({
             imei: imei,
             timestamp: {
