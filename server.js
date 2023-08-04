@@ -10,6 +10,11 @@ const pointInPolygon = require("point-in-polygon");
 const { getOrSetCache } = require("./utils/functions");
 const { GeoConfiguration } = require("./models/geographic.js");
 const { Vehicle, Setting, Group, Rule } = require("./models/index.js");
+const {
+  convertToJson,
+  convertMapToObject,
+  hasSameImeiAndTimestamp,
+} = require("./utils/helpers");
 
 // Socket GPS client (by TCP)
 const net = require("net");
@@ -26,8 +31,7 @@ const io = require("socket.io")(server, { cors: { origin: "*" } });
 const connectedWebSocketsByIMEI = new Map(); // initialiser une variable pour stocker les sockets Web connéctés correspondant à un IMEI
 
 // RabbitMQ
-const amqp = require("amqplib");
-const rabbitMQUrl = "amqp://localhost"; // URL RabbitMQ
+const rabbitMQChannel = require("./config/rabbitmq");
 const queueName = "gpsDataQueue"; // nom de la file d'attente (Queue) RabbitMQ
 
 // Allow cross-origin
@@ -81,29 +85,6 @@ schedule.scheduleJob(rule, async () => {
 // ============================================================================================================================== //
 // =========================================================[ RabbitMQ ]========================================================= //
 // ============================================================================================================================== //
-// Créer une connexion à RabbitMQ
-const connectToRabbitMQ = async () => {
-  try {
-    const connection = await amqp.connect(rabbitMQUrl);
-    const channel = await connection.createChannel();
-    // NB: Echange (Exchange) utilisé ici est "AMQP default" avec type "direct".
-    //   Lorsqu'un message est publié à un échange de type "direct", il est routé vers les files d'attente (Queues) dont la clé de liaison correspond exactement à la clé de routage du message. Cela signifie qu'un message sera reçu uniquement par les files d'attente qui ont été explicitement liées à l'échange avec la même clé de liaison.
-    //   Il est important de noter que "AMQP defaut" est un échange par default de RabbitMQ qui son type est "direct", et que lorsqu'une file d'attente (Queue) est créée sans spécifier explicitement l'échange auquel elle est liée, elle sera automatiquement liée à cet échange par défaut.
-
-    // Créer la file d'attente si elle n'existe pas déjà
-    // NB: la création de la file d'attente ici est effectuée avec la configuration { durable: true }, ce qui signifie que la file d'attente sera durable et survivra à un redémarrage du serveur RabbitMQ.
-    await channel.assertQueue(queueName, { durable: true });
-    console.log("RabbitMQ connection succeeded.");
-    return channel;
-  } catch (error) {
-    console.error("Error connecting to RabbitMQ:", error);
-    process.exit(1); // Quitter l'application en cas d'erreur
-  }
-};
-
-// Appeler la fonction pour établir la connexion RabbitMQ
-const rabbitMQChannel = connectToRabbitMQ();
-
 // Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
 async function publishDataToQueue(imei, data) {
   const message = {
@@ -159,9 +140,7 @@ const consumeMessages = async () => {
                   ],
                 });
 
-                const vehiclesAsJson = vehicles.map((vehicle) =>
-                  vehicle.toJSON()
-                );
+                const vehiclesAsJson = convertToJson(vehicles);
 
                 // Créer un objet Map pour grouper les véhicules par utilisateur
                 const vehiclesGroupedByUser = new Map();
@@ -176,7 +155,7 @@ const consumeMessages = async () => {
                   vehiclesGroupedByUser.get(userId).push(vehicle);
                 });
 
-                const vehiclesGroupedByUserObj = Object.fromEntries(
+                const vehiclesGroupedByUserObj = convertMapToObject(
                   vehiclesGroupedByUser
                 );
 
@@ -240,19 +219,12 @@ consumeMessages();
 // Il crée simplement un serveur TCP (trackingServer) avec une connexion active pour chaque client GPS connecté.
 // Les clients GPS se connectent au serveur et chaque fois qu'un client se connecte, une nouvelle connexion est établie. Toutes les connexions sont gérées par le même serveur.
 
-// Comparaison d'un objet précédent avec l'objet IMEI actuel
-function areValuesEqual(obj1, obj2) {
-  return (
-    obj1 && obj2 && obj1.imei === obj2.imei && obj1.timestamp === obj2.timestamp
-  );
-}
-
 // observer les changements de valeurs IMEI
 const observeChanges = (imei, values) => {
   const previousValues = latestDataFromGPSClients.get(imei);
   latestDataFromGPSClients.set(imei, values);
   // Vérifie si les valeurs ont changé
-  if (!areValuesEqual(previousValues, values)) {
+  if (!hasSameImeiAndTimestamp(previousValues, values)) {
     // S'il a changé, effectuer l'action "next" sur la variable "gpsClientsSubject" afin qu'elle soit détectée et accessible dans le traitement du socket Web
     gpsClientsSubject.next({ imei, values });
 
@@ -477,7 +449,7 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
           if (ruleValues.length > 0) {
             // ici il récupére un seul document complet de la collection "geo_configurations" de l'utilisateur concerné qui contient tous les polygons d'utilisateur possibles
             //   NB: "ruleValues" ne contiennent que les "ids" de polygones de l'utilisateur concérné provenant de son document "geo_configurations" en fonction de la valeur IMEI qui est unique et attribuée à un seul utilisateur
-            // NB: On fait destruct pour se débarrasser de l'objet "_id". car meme on a fait: select("polygons"); mais cela est retourné avec un "_id"
+            // NB: On fait destruct pour se débarrasser de l'objet "_id". puisque même on fait: select("polygons") mais cela retourné avec l'objet "_id"
             const { polygons } = await GeoConfiguration.findOne({
               "polygons.properties.id": { $in: ruleValues },
             }).select("polygons");
@@ -508,7 +480,7 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
           const endOfYesterday = new Date(yesterday);
           endOfYesterday.setHours(23, 59, 59, 999); // Fin de la journée d'hier
 
-          // Créer le modèle pour la collection 'user_1__locations'
+          // Créer le modèle pour la collection 'user_x__locations'
           const Location = createLocationModel(dataSettings.group.user_id);
           const lastRecordLocation = await Location.findOne({
             imei: imei,
@@ -524,7 +496,7 @@ gpsClientsSubject.subscribe(async ({ imei, values }) => {
           const totalOdometerValue =
             lastRecordLocation?.ioElements?.["Total Odometer"] ?? 0;
 
-          dataSettings.totalOdometerValue = totalOdometerValue || 0; // s'il n'y a pas d'enregistrements pour hier, initialiser à 0
+          dataSettings.totalOdometerValue = totalOdometerValue || 0; // s'il n'y a pas d'enregistrements pour hier, initialiser le à 0
         }
 
         return dataSettings;
