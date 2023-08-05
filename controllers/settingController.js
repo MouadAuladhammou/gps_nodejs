@@ -1,8 +1,6 @@
 const asyncHandler = require("express-async-handler");
-
 const sequelize = require("../config/mysql.js");
 const { Op } = require("sequelize");
-
 const { Setting, Rule } = require("../models/index.js");
 
 const getSettings = asyncHandler(async (req, res) => {
@@ -48,7 +46,7 @@ const createSetting = asyncHandler(async (req, res) => {
 
     await setting.addRules(rules, { transaction });
     await transaction.commit();
-    res.status(200).send({
+    res.status(201).send({
       setting,
     });
   } catch (error) {
