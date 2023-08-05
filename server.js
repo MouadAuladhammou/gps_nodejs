@@ -71,6 +71,10 @@ app.use("/api/groups", group);
 app.use("/api/rules", rules);
 app.use("/api/settings", settings);
 
+// Middleware error handler
+const errorHandler = require("./middleware/errorHanadler");
+app.use(errorHandler);
+
 (async () => {
   // traitement en mode async ...
 })();
