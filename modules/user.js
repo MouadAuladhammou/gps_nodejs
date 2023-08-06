@@ -90,167 +90,6 @@ router.delete("/delete/:id", (req, res) => {
     });
 });
 
-// User
-router.get("/logged-in", verifyToken, (req, res) => {
-  if (!res.headersSent) {
-    if (req.userId) {
-      // Obtenir les informations de l'utilisateur actuel, puis les inclure dans la réponse
-      User.findOne({
-        where: { id: req.userId },
-        include: [
-          {
-            model: Group,
-            as: "groupes",
-            include: [
-              {
-                model: Vehicle,
-                as: "vehicles",
-              },
-            ],
-          },
-        ],
-      })
-        .then(function (user) {
-          if (user) {
-            res.status(200).send({
-              user,
-            });
-          } else res.status(401).send({ Error: "Invalid data" });
-        })
-        .catch((error) => {
-          console.error("Error : ", error);
-        });
-    }
-  }
-});
-
-router.post("/register", (req, res) => {
-  User.create({
-    last_name: req.body.last_name,
-    first_name: req.body.first_name,
-    email: req.body.email,
-    cin: req.body.cin,
-    address: req.body.address,
-    city: req.body.city,
-    postal_code: req.body.postal_code,
-    cell_phone: req.body.cell_phone,
-    work_phone: req.body.work_phone,
-    password: req.body.password,
-    status: req.body.status,
-    has_company: req.body.has_company,
-  })
-    .then((result) => {
-      let payload = { subject: result.id };
-      const token = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_DURING,
-      });
-      res.status(200).send({
-        token,
-        user: result.dataValues,
-      });
-    })
-    .catch((error) => {
-      console.error("Failed to create a new record : ", error);
-    });
-});
-
-router.post("/login", (req, res) => {
-  let user = req.body;
-  User.findOne({
-    where: { email: user.email, password: user.password },
-    include: [
-      {
-        model: Group,
-        as: "groupes",
-        include: [
-          {
-            model: Vehicle,
-            as: "vehicles",
-          },
-        ],
-      },
-    ],
-  })
-    .then(function (user) {
-      if (!user) {
-        res.status(401).send({ Error: "Invalid Email or Password" });
-      } else {
-        let payload = { subject: user.id };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, {
-          expiresIn: process.env.JWT_DURING,
-        });
-        res.status(200).send({ token, user });
-      }
-    })
-    .catch((error) => {
-      res.status(500).send({ Error: error });
-    });
-});
-
-router.put("/update/:id", (req, res) => {
-  User.update(
-    {
-      last_name: req.body.last_name,
-      first_name: req.body.first_name,
-      email: req.body.email,
-      cin: req.body.cin,
-      address: req.body.address,
-      city: req.body.city,
-      postal_code: req.body.postal_code,
-      cell_phone: req.body.cell_phone,
-      work_phone: req.body.work_phone,
-      password: req.body.password,
-    },
-    {
-      where: { id: req.params.id },
-    }
-  )
-    .then((result) => {
-      res.send("done");
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
-});
-
-router.get("/email/unique", async (req, res) => {
-  User.findOne({ where: { email: req.query.q } })
-    .then(function (result) {
-      if (!result) res.send(false);
-      else res.send(true);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
-});
-
-router.get("/cin/unique", async (req, res) => {
-  User.findOne({ where: { cin: req.query.q } })
-    .then(function (result) {
-      if (!result) res.send(false);
-      else res.send(true);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
-});
-
-router.get("/phone/unique", async (req, res) => {
-  User.findOne({
-    where: {
-      [Op.or]: [{ cell_phone: req.query.q }, { work_phone: req.query.q }],
-    },
-  })
-    .then(function (result) {
-      if (!result) res.send(false);
-      else res.send(true);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
-});
-
-// Communes
 router.get("/:id/vehicle", (req, res) => {
   User.findOne({
     where: { id: req.params.id, has_company: false, status: true },
@@ -269,5 +108,24 @@ router.get("/:id/vehicle", (req, res) => {
       console.error("Error : ", error);
     });
 });
+
+// User
+const {
+  loginUser,
+  currentUser,
+  registerUser,
+  updateUser,
+  checkEmailUnique,
+  checkCinUnique,
+  checkPhoneNumberUnique,
+} = require("../controllers/userController.js");
+
+router.post("/register", registerUser);
+router.post("/login", loginUser);
+router.get("/logged-in", verifyToken, currentUser);
+router.put("/:id", verifyToken, updateUser);
+router.get("/email/unique", checkEmailUnique);
+router.get("/cin/unique", checkCinUnique);
+router.get("/phone/unique", checkPhoneNumberUnique);
 
 module.exports = router;
