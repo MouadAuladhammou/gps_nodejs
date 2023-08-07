@@ -50,7 +50,6 @@ const location = require("./modules/location.js");
 // const location_graphql = require("./modules/location_graphql.js"); // GraphQL
 const user = require("./modules/user.js");
 const admin = require("./modules/admin.js");
-const map = require("./modules/map.js");
 const geo = require("./modules/geographic.js");
 const group = require("./modules/group.js");
 const rules = require("./modules/rule.js");
@@ -64,7 +63,6 @@ app.use(timeout("60s"));
 app.use("/api/locations", location);
 app.use("/api/users", user);
 app.use("/api/admin", admin);
-app.use("/api/map", map);
 app.use("/api/geo", geo);
 app.use("/api/groups", group);
 app.use("/api/rules", rules);
