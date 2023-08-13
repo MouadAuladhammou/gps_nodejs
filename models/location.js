@@ -32,6 +32,7 @@ const createLocationModel = (userId) => {
     timestamp: { type: Date, required: true },
     hour: { type: Number, required: true },
     minute: { type: Number, required: true },
+    notifications: { type: Object, required: false },
     created_at: { type: Date },
   });
 

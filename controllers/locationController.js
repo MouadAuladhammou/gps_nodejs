@@ -15,10 +15,11 @@ const getLocations = asyncHandler(async (req, res) => {
     end_date,
     range,
     hour,
+    notifications_only,
   } = req.query;
 
   const dataHistory = await getOrSetCache(
-    `dataHistory?imei=${imei}&page=${page}&limit=${limit}&start_date=${start_date}&end_date=${end_date}&range=${range}&hour=${hour}`,
+    `dataHistory?imei=${imei}&page=${page}&limit=${limit}&start_date=${start_date}&end_date=${end_date}&range=${range}&hour=${hour}&notifications_only=${notifications_only}`,
     async () => {
       const Location = createLocationModel(req.userId);
       let startDate, endDate;
@@ -46,6 +47,10 @@ const getLocations = asyncHandler(async (req, res) => {
         timestamp: { $gte: startDate, $lt: endDate },
         imei: imei,
         ...(hour && { hour: hour }),
+        // notifications.0: si le premier élément du tableau notifications existe, ce qui signifie qu'il y a au moins une notification
+        ...(notifications_only === "true" && {
+          "notifications.0": { $exists: true },
+        }),
       };
 
       let count = await Location.countDocuments(query);
