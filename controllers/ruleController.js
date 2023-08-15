@@ -68,6 +68,7 @@ const checkRuleNameUnique = asyncHandler(async (req, res) => {
 
   const condition = {
     name: ruleName,
+    user_id: req.userId,
   };
 
   if (ruleId) {

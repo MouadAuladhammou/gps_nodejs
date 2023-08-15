@@ -119,6 +119,7 @@ const checkSettingNameUnique = asyncHandler(async (req, res) => {
 
   const condition = {
     name: settingName,
+    user_id: req.userId,
   };
 
   if (settingId) {

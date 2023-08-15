@@ -20,24 +20,28 @@ CREATE TABLE users (
 
 CREATE TABLE settings (
     id int NOT NULL AUTO_INCREMENT,
-    name varchar(255) NOT NULL UNIQUE,
+    name varchar(255) NOT NULL,
     description varchar(400) NOT NULL,
     status TINYINT(1) DEFAULT 1,
     user_id int NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_setting_user (name, user_id)
+    -- NB: Champ "user_id" utilisé ici pour vérifier si "settings or setting" est pour l'utilisateur actuel lors de la demande de récupération, également utilisé pour rendre les champs "name" et "user_id" uniques ensemble
 );
 
 CREATE TABLE rules (
     id int NOT NULL AUTO_INCREMENT,
-    name varchar(255) NOT NULL UNIQUE,
+    name varchar(255) NOT NULL,
     description varchar(400) DEFAULT NULL,
     type int NOT NULL, -- select : Geo zone (entré ou sortie) | Speed limit (km/h) | fuel consumption (L/j) | travel distance (Km/j)
     params TEXT DEFAULT NULL,
     value varchar(255) NOT NULL,
     user_id int NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_rule_user (name, user_id)
+    -- NB: Champ "user_id" utilisé ici pour vérifier si "rules or rule" est pour l'utilisateur actuel lors de la demande de récupération, également utilisé pour rendre les champs "name" et "user_id" uniques ensemble
 );
 
 CREATE TABLE setting_rules (
