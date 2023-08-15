@@ -1,5 +1,5 @@
 const asyncHandler = require("express-async-handler");
-const sequelize = require("../config/mysql.js");
+const { sequelize } = require("../config/mysql.js");
 const { Op } = require("sequelize");
 const { Setting, Rule } = require("../models/index.js");
 

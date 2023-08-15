@@ -11,4 +11,18 @@ const hasSameImeiAndTimestamp = (obj1, obj2) => {
   return imei1 === imei2 && timestamp1 === timestamp2;
 };
 
-module.exports = { convertToJson, convertMapToObject, hasSameImeiAndTimestamp };
+const getHourlyDateWithoutMinutes = (timestamp) => {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  return `${year}_${month}_${day}__${hour}`;
+};
+
+module.exports = {
+  convertToJson,
+  convertMapToObject,
+  hasSameImeiAndTimestamp,
+  getHourlyDateWithoutMinutes,
+};

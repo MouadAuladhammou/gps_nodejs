@@ -1,14 +1,16 @@
 const mongoose = require("mongoose");
 
-// se connecter à Mongodb
-mongoose.connect(
-  "mongodb://admin:adminpassword@64.226.124.200:27017/db_gps",
-  (err) => {
-    if (!err) console.log("MongoDB connection succeeded.");
-    else
-      console.log(
-        "Error in DB connection : " + JSON.stringify(err, undefined, 2)
-      );
+// Fonction pour se connecter à Mongodb
+async function connectMongoDB() {
+  try {
+    await mongoose.connect(
+      "mongodb://admin:adminpassword@64.226.124.200:27017/db_gps"
+    );
+    console.log("MongoDB connection succeeded.");
+  } catch (error) {
+    console.error("Error in DB connection:", error);
+    throw error; // Rejeter l'erreur pour la gérer à un niveau supérieur
   }
-);
-module.exports = mongoose;
+}
+
+module.exports = connectMongoDB;

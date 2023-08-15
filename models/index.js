@@ -13,6 +13,11 @@ User.hasMany(Group, {
   as: "groupes",
 });
 
+Group.belongsTo(User, {
+  foreignKey: "user_id",
+  as: "user",
+});
+
 Setting.hasMany(Group, {
   foreignKey: "setting_id",
   as: "groupes",

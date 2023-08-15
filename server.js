@@ -7,15 +7,14 @@ app.use(bodyParser.json());
 const schedule = require("node-schedule");
 
 const {
-  getOrSetCache,
   getVehicleWithSettings,
   manageNotifications,
+  getAllVehiclesGroupedByUser,
 } = require("./utils/functions");
-const { Vehicle, Group } = require("./models/index.js");
+
 const {
-  convertToJson,
-  convertMapToObject,
   hasSameImeiAndTimestamp,
+  getHourlyDateWithoutMinutes,
 } = require("./utils/helpers");
 
 // Socket GPS client (by TCP)
@@ -32,17 +31,24 @@ const server = require("http").createServer(app);
 const io = require("socket.io")(server, { cors: { origin: "*" } });
 const connectedWebSocketsByIMEI = new Map(); // initialiser une variable pour stocker les sockets Web connéctés correspondant à un IMEI
 
+// Connecter aux bases de données
+const connectMongoDB = require("./config/mongodb.js");
+const { connectMySQL } = require("./config/mysql.js");
+connectMongoDB();
+connectMySQL();
+
 // RabbitMQ
 const rabbitMQChannel = require("./config/rabbitmq");
-const queueName = "gpsDataQueue"; // nom de la file d'attente (Queue) RabbitMQ
+const mongoDBQueueName = "mongoDBQueue"; // nom de la file d'attente (Queue) RabbitMQ
+const smsQueueName = "smsQueue";
+
+const ExpiringMap = require("./utils/classes/expiringMap.js");
+const oneHourInMillis = 60 * 60 * 1000; // Une heure en millisecondes
+const latestNotifications = new ExpiringMap(oneHourInMillis); // Utilisation Map de la structure "ExpiringMap" avec un delai d'expiration
 
 // Allow cross-origin
 const cors = require("cors");
 app.use(cors({ origin: "*" }));
-
-// connect DB
-require("./config/mongodb.js");
-require("./config/mysql.js");
 
 // Models
 const { createLocationModel } = require("./models/location.js");
@@ -89,7 +95,7 @@ schedule.scheduleJob(rule, async () => {
 // =========================================================[ RabbitMQ ]========================================================= //
 // ============================================================================================================================== //
 // Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
-async function publishDataToQueue(imei, data) {
+async function publishDataToQueues(imei, data) {
   const message = {
     imei: imei,
     gps: data.gps,
@@ -98,14 +104,24 @@ async function publishDataToQueue(imei, data) {
     hour: data.timestamp.getHours(),
     minute: data.timestamp.getMinutes(),
     notifications: data.notifications,
+    userPhoneNumber: data.userPhoneNumber,
     created_at: new Date(),
   };
 
   try {
     const channel = await rabbitMQChannel;
 
-    // Envoyer le message à RabbitMQ (exactement dans Queue)
-    channel.sendToQueue(queueName, Buffer.from(JSON.stringify(message)), {
+    // Envoyer le message à la file d'attente pour MongoDB
+    channel.sendToQueue(
+      mongoDBQueueName,
+      Buffer.from(JSON.stringify(message)),
+      {
+        persistent: true,
+      }
+    );
+
+    // Envoyer le message à la file d'attente pour l'envoi des SMS
+    channel.sendToQueue(smsQueueName, Buffer.from(JSON.stringify(message)), {
       persistent: true,
     });
   } catch (error) {
@@ -114,7 +130,7 @@ async function publishDataToQueue(imei, data) {
 }
 
 // Créer une connexion à RabbitMQ et consommez les messages
-const consumeMessages = async () => {
+const consumeMessagesForMongoDB = async () => {
   try {
     const channel = await rabbitMQChannel;
 
@@ -124,59 +140,21 @@ const consumeMessages = async () => {
     // channel.prefetch(1);
 
     // Consommer les messages de la file d'attente (Queue)
-    await channel.consume(queueName, async (message) => {
+    await channel.consume(mongoDBQueueName, async (message) => {
       if (message !== null) {
         try {
           const gpsData = JSON.parse(message.content.toString());
 
           // Rappelle: chaque ustilisateur a sa propre collection contenant les données de ses véhicules (les données de GPS)
-          const cachedVehiclesGroupedByUser = await getOrSetCache(
-            `vehiclesGroupedByUser`,
-            async () => {
-              try {
-                const vehicles = await Vehicle.findAll({
-                  include: [
-                    {
-                      model: Group,
-                      as: "group",
-                      attributes: ["name", "user_id"],
-                    },
-                  ],
-                });
-
-                const vehiclesAsJson = convertToJson(vehicles);
-
-                // Créer un objet Map pour grouper les véhicules par utilisateur
-                const vehiclesGroupedByUser = new Map();
-
-                vehiclesAsJson.forEach((vehicle) => {
-                  const userId = vehicle.group.user_id; // Utiliser "user_id" de la relation pour récupérer l'ID de l'utilisateur
-                  if (!vehiclesGroupedByUser.has(userId)) {
-                    // Si l'utilisateur n'existe pas encore dans l'objet Map, ajouter une nouvelle entrée avec un tableau vide pour stocker ses véhicules
-                    vehiclesGroupedByUser.set(userId, []);
-                  }
-                  // Ajouter le véhicule au tableau correspondant à l'utilisateur
-                  vehiclesGroupedByUser.get(userId).push(vehicle);
-                });
-
-                const vehiclesGroupedByUserObj = convertMapToObject(
-                  vehiclesGroupedByUser
-                );
-
-                return vehiclesGroupedByUserObj;
-              } catch (error) {
-                console.error("Error: ", error);
-                throw new Error("Internal Server Error");
-              }
-            }
-          );
+          const cachedAllVehiclesGroupedByUser =
+            await getAllVehiclesGroupedByUser();
 
           // Trouver le véhicule associé à l'IMEI
           const { imei } = gpsData;
           let vehicleAssociatedWithImei = null;
 
           // Utiliser Array.prototype.some() pour chercher le véhicule correspondant à l'IMEI
-          Object.values(cachedVehiclesGroupedByUser).some((vehicles) => {
+          Object.values(cachedAllVehiclesGroupedByUser).some((vehicles) => {
             vehicleAssociatedWithImei = vehicles.find(
               (vehicle) => vehicle.imei === imei
             );
@@ -209,11 +187,72 @@ const consumeMessages = async () => {
     });
   } catch (error) {
     console.error("Error connecting to RabbitMQ:", error);
-    process.exit(1); // Quitter l'application en cas d'erreur
+    // process.exit(1); // Quitter l'application en cas d'erreur
   }
 };
 
-consumeMessages();
+const consumeMessagesForSMS = async () => {
+  const channel = await rabbitMQChannel;
+  // Consommer les messages de la file d'attente (Queue)
+  await channel.consume(smsQueueName, async (message) => {
+    console.log("= =  = =  = =  = =  = =  = =  = =  = =  = =  = =  = =");
+    console.log(
+      "=> => => => => => all latestNotifications <= <= <= <= <= <=",
+      latestNotifications.listAll()
+    );
+    if (message !== null) {
+      try {
+        const gpsData = JSON.parse(message.content.toString());
+        const { imei, timestamp, notifications, userPhoneNumber } = gpsData;
+        const hourlyDate = getHourlyDateWithoutMinutes(timestamp);
+
+        if (
+          Array.isArray(notifications) &&
+          notifications.length > 0 &&
+          userPhoneNumber
+        ) {
+          notifications.forEach((notification) => {
+            const notificationKey = `${imei}__${notification.type}__${hourlyDate}`;
+
+            if (!latestNotifications.has(notificationKey)) {
+              latestNotifications.set(notificationKey, {
+                notification,
+                userPhoneNumber,
+              });
+
+              // Traitement de l'envoi de SMS en utilisant l'API ...
+              console.warn(
+                `=> SMS a été envoyé vers le numéro ${userPhoneNumber} pour la notification : ${notification.type}`
+              );
+            } else {
+              console.warn(
+                `=> Le dernier SMS envoyé pour la notification ${notification.type} n'a pas dépassé une heure`
+              );
+            }
+          });
+
+          // Confirmer la réception et le traitement du message
+          channel.ack(message);
+        } else {
+          console.warn(
+            "Pas de notifications dans le message, le message sera rejeté."
+          );
+          // Gérer le cas où la variable "notifications" ne contient pas de notification à envoyer
+          channel.reject(message, false);
+        }
+      } catch (error) {
+        console.error("Erreur :", error);
+        channel.reject(message, false);
+      }
+    }
+    console.log("= =  = =  = =  = =  = =  = =  = =  = =  = =  = =  = =");
+    console.log(" ");
+    console.log(" ");
+  });
+};
+
+consumeMessagesForMongoDB();
+consumeMessagesForSMS();
 
 // ============================================================================================================================== //
 // ======================================================[ Socket GPS TCP ]====================================================== //
@@ -242,7 +281,7 @@ const observeChanges = async (imei, values) => {
     gpsClientsSubject.next({ imei, values: valuesWithNotifs });
 
     // Envoyer les données à RabbitMQ pour consommation
-    publishDataToQueue(imei, valuesWithNotifs);
+    publishDataToQueues(imei, valuesWithNotifs);
   }
 };
 
@@ -492,7 +531,7 @@ setInterval(() => {
     timestamp: new Date(),
     created_at: "date time",
   });
-}, 5000);
+}, 10000);
 */
 
 // Ceci juste pour voir ce qui se passe

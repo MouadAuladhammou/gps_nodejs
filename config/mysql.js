@@ -4,14 +4,15 @@ const sequelize = new Sequelize("gpsdb", "root", "123456", {
   dialect: "mysql",
 });
 
-// se connecter à mysql
-sequelize
-  .authenticate()
-  .then(() => {
+// Fonction pour se connecter à MySQL
+async function connectMySQL() {
+  try {
+    await sequelize.authenticate();
     console.log("Mysql Connection has been established successfully.");
-  })
-  .catch((error) => {
-    console.error("Unable to connect to the database: ", error);
-  });
+  } catch (error) {
+    console.error("Unable to connect to the database:", error);
+    throw error; // Rejeter l'erreur pour la gérer à un niveau supérieur
+  }
+}
 
-module.exports = sequelize;
+module.exports = { sequelize, connectMySQL };

@@ -1,9 +1,10 @@
 const redisClientPromise = require("../config/redis");
 const DEFAULT_CACHE_EXPIRATION = process.env.DEFAULT_CACHE_EXPIRATION || 120; // secondes
-const { Vehicle, Setting, Group, Rule } = require("../models/index.js");
+const { Vehicle, Setting, User, Group, Rule } = require("../models/index.js");
 const { GeoConfiguration } = require("../models/geographic.js");
 const { createLocationModel } = require("../models/location.js");
 const pointInPolygon = require("point-in-polygon");
+const { convertToJson, convertMapToObject } = require("../utils/helpers");
 
 // Fonction pour vérifier la validité d'une date et heure
 const isValidDateTime = (dateTimeString) => {
@@ -62,9 +63,14 @@ const getVehicleWithSettings = async (imei) => {
             attributes: ["name", "user_id"],
             include: [
               {
+                model: User,
+                as: "user",
+                attributes: ["cell_phone", "work_phone"],
+              },
+              {
                 model: Setting,
                 as: "setting",
-                attributes: ["name"],
+                attributes: ["name", "status"],
                 include: [
                   {
                     model: Rule,
@@ -147,12 +153,59 @@ const getVehicleWithSettings = async (imei) => {
   });
 };
 
+// Récupérer tous les véhicules de tous les utilisateurs depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
+const getAllVehiclesGroupedByUser = async () => {
+  return await getOrSetCache(`vehiclesGroupedByUser`, async () => {
+    try {
+      const vehicles = await Vehicle.findAll({
+        include: [
+          {
+            model: Group,
+            as: "group",
+            attributes: ["name", "user_id"],
+          },
+        ],
+      });
+
+      const vehiclesAsJson = convertToJson(vehicles);
+
+      // Créer un objet Map pour grouper les véhicules par utilisateur
+      const vehiclesGroupedByUser = new Map();
+
+      vehiclesAsJson.forEach((vehicle) => {
+        const userId = vehicle.group.user_id; // Utiliser "user_id" de la relation pour récupérer l'ID de l'utilisateur
+        if (!vehiclesGroupedByUser.has(userId)) {
+          // Si l'utilisateur n'existe pas encore dans l'objet Map, ajouter une nouvelle entrée avec un tableau vide pour stocker ses véhicules
+          vehiclesGroupedByUser.set(userId, []);
+        }
+        // Ajouter le véhicule au tableau correspondant à l'utilisateur
+        vehiclesGroupedByUser.get(userId).push(vehicle);
+      });
+
+      const vehiclesGroupedByUserObj = convertMapToObject(
+        vehiclesGroupedByUser
+      );
+
+      return vehiclesGroupedByUserObj;
+    } catch (error) {
+      console.error("Error: ", error);
+      throw new Error("Internal Server Error");
+    }
+  });
+};
+
 // Gestion des notifications en fonction des régles du véhicule
 const manageNotifications = async (vehicleWithSettings, values) => {
   return new Promise((resolve, reject) => {
     if (!values.notifications) {
       values.notifications = [];
     }
+
+    // Ajouter un numéro de téléphone à utiliser pour envoyer des SMS en cas de notification
+    if (!values.userPhoneNumber) {
+      values.userPhoneNumber = vehicleWithSettings?.group?.user?.cell_phone;
+    }
+
     (vehicleWithSettings.group.setting.rules || []).map((rule) => {
       // ============ Type:1 => Geo zone ============ //
       if (rule.type === 1 && rule.polygon?.geometry?.coordinates) {
@@ -241,4 +294,5 @@ module.exports = {
   getOrSetCache,
   getVehicleWithSettings,
   manageNotifications,
+  getAllVehiclesGroupedByUser,
 };
