@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const { createLocationModel } = require("../models/location.js");
+const { Types } = require("mongoose");
 const {
   isValidDateTime,
   parseDateTime,
@@ -37,6 +38,9 @@ const getLocations = asyncHandler(async (req, res) => {
       } else {
         endDate = new Date();
       }
+
+      startDate.setMilliseconds(0);
+      endDate.setMilliseconds(999);
 
       // ajuster limit avec range
       if (range && range > 1) {
@@ -104,7 +108,81 @@ const getLastRecord = asyncHandler(async (req, res) => {
   }
 });
 
+const getNotifications = asyncHandler(async (req, res) => {
+  const perPage = 1; // Nombre d'éléments à charger à chaque fois
+  const currentPage = req.params.page || 1;
+  const startIndex = (currentPage - 1) * perPage;
+
+  const Location = createLocationModel(req.userId);
+  const notifications = await Location.aggregate([
+    { $unwind: "$notifications" }, // Décompose le tableau notifications
+    // Rappel: Les notifications sont même des notifications qui sont dans le document du collection mais doivent également avoir le champ "viewedOnNavBar" pour être considérées comme une notification affichée sur une NavBar
+    { $match: { "notifications.viewedOnNavBar": { $exists: true } } }, // Filtrer les notifications avec viewedOnNavBar
+    { $sort: { timestamp: -1, "notifications.type": 1 } }, // Tri par timestamp puis par type
+    { $skip: startIndex },
+    { $limit: perPage },
+    { $project: { _id: 1, imei: 1, notifications: 1, timestamp: 1 } }, // Projeter les notifications et les champs nécessaires
+  ]);
+
+  // Mettre à jour les notifications avec le champ "viewedOnNavBar" "false" à "true"
+  const notificationIdsToUpdate = notifications.reduce(
+    (ids, { _id, notifications }) => {
+      if (!notifications.viewedOnNavBar) {
+        ids.push(_id);
+      }
+      return ids;
+    },
+    []
+  );
+
+  try {
+    if (notificationIdsToUpdate.length > 0) {
+      await Location.updateMany(
+        {
+          _id: {
+            $in: notificationIdsToUpdate.map((id) => Types.ObjectId(id)),
+          },
+          "notifications.viewedOnNavBar": false,
+        },
+        { $set: { "notifications.$.viewedOnNavBar": true } }
+      );
+    }
+  } catch (error) {
+    res.status(500);
+    throw new Error("Error...");
+  }
+
+  res.status(200).send(notifications || []);
+});
+
+const deleteNotification = asyncHandler(async (req, res) => {
+  const Location = createLocationModel(req.userId);
+  const { notificationType, documentId } = req.body;
+  if (!notificationType || !documentId) {
+    res.status(404);
+    throw new Error("Notification not found");
+  } else {
+    try {
+      const updated = await Location.findOneAndUpdate(
+        { _id: documentId, "notifications.type": parseInt(notificationType) },
+        {
+          // Supprimer simplement le champ "viewedOnNavBar" pour qu'il ne soit plus affiché dans la Navbar tout en conservant ses données pour un suivi historique
+          $unset: {
+            "notifications.$.viewedOnNavBar": "",
+          },
+        }
+      );
+      updated ? res.status(200).end() : res.status(404).end();
+    } catch (err) {
+      res.status(500);
+      throw new Error("Error...");
+    }
+  }
+});
+
 module.exports = {
   getLocations,
   getLastRecord,
+  getNotifications,
+  deleteNotification,
 };

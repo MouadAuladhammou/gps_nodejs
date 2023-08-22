@@ -195,7 +195,11 @@ const consumeMessagesForSMS = async () => {
   const channel = await rabbitMQChannel;
   // Consommer les messages de la file d'attente (Queue)
   await channel.consume(smsQueueName, async (message) => {
-    console.log("= =  = =  = =  = =  = =  = =  = =  = =  = =  = =  = =");
+    console.log(" ");
+    console.log(" ");
+    console.log(
+      "= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
+    );
     console.log(
       "=> => => => => => all latestNotifications <= <= <= <= <= <=",
       latestNotifications.listAll()
@@ -245,7 +249,9 @@ const consumeMessagesForSMS = async () => {
         channel.reject(message, false);
       }
     }
-    console.log("= =  = =  = =  = =  = =  = =  = =  = =  = =  = =  = =");
+    console.log(
+      "= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
+    );
     console.log(" ");
     console.log(" ");
   });
@@ -276,6 +282,21 @@ const observeChanges = async (imei, values) => {
       vehicleWithSettings,
       values
     );
+
+    // Enregistrer la notification en tant que notification horaire (étape 3) :
+    // NB: Si une notification du même type est détectée dans un délai n'excédant pas une heure, alors elle n'est pas enregistrée en tant que notification qui doit être affichée sur la NavBar
+    const hourlyDate = getHourlyDateWithoutMinutes(values.timestamp);
+    if (
+      Array.isArray(valuesWithNotifs.notifications) &&
+      valuesWithNotifs.notifications.length > 0
+    ) {
+      valuesWithNotifs.notifications.forEach((notification) => {
+        const notificationKey = `${imei}__${notification.type}__${hourlyDate}`;
+        // Que l'utilisateur soit connecté ou non,enregistrer la notification (par heure) sous invisible (viewedOnNavBar = false) pour l'afficher dans NavBar comme étant une notification invisible.
+        !latestNotifications.has(notificationKey) &&
+          (notification.viewedOnNavBar = false);
+      });
+    }
 
     // S'il a changé, effectuer l'action "next" sur la variable "gpsClientsSubject" afin qu'elle soit détectée et accessible dans le traitement du socket Web
     gpsClientsSubject.next({ imei, values: valuesWithNotifs });
