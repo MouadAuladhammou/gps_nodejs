@@ -109,7 +109,7 @@ const getLastRecord = asyncHandler(async (req, res) => {
 });
 
 const getNotifications = asyncHandler(async (req, res) => {
-  const perPage = 1; // Nombre d'éléments à charger à chaque fois
+  const perPage = 4; // Nombre d'éléments à charger à chaque fois
   const currentPage = req.params.page || 1;
   const startIndex = (currentPage - 1) * perPage;
 
@@ -149,7 +149,7 @@ const getNotifications = asyncHandler(async (req, res) => {
     }
   } catch (error) {
     res.status(500);
-    throw new Error("Error...");
+    throw new Error("Internal Server Error: " + error.message);
   }
 
   res.status(200).send(notifications || []);
@@ -175,7 +175,7 @@ const deleteNotification = asyncHandler(async (req, res) => {
       updated ? res.status(200).end() : res.status(404).end();
     } catch (err) {
       res.status(500);
-      throw new Error("Error...");
+      throw new Error("Internal Server Error: " + err.message);
     }
   }
 });

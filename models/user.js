@@ -53,10 +53,6 @@ const User = sequelize.define(
       type: DataTypes.BOOLEAN,
       // allowNull: false,
     },
-    has_company: {
-      type: DataTypes.BOOLEAN,
-      // allowNull: false,
-    },
   },
   { timestamps: false }
 );

@@ -5,31 +5,36 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const loginUser = asyncHandler(async (req, res) => {
-  const user = await User.findOne({
-    where: { email: req.body.email, password: req.body.password },
-    include: [
-      {
-        model: Group,
-        as: "groupes",
-        include: [
-          {
-            model: Vehicle,
-            as: "vehicles",
-          },
-        ],
-      },
-    ],
-  });
-
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
-  } else {
-    let payload = { subject: user.id };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_DURING,
+  try {
+    const user = await User.findOne({
+      where: { email: req.body.email, password: req.body.password },
+      include: [
+        {
+          model: Group,
+          as: "groupes",
+          include: [
+            {
+              model: Vehicle,
+              as: "vehicles",
+            },
+          ],
+        },
+      ],
     });
-    res.status(200).send({ token, user });
+
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found");
+    } else {
+      let payload = { subject: user.id };
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_DURING,
+      });
+      res.status(200).send({ token, user });
+    }
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -55,20 +60,20 @@ const currentUser = asyncHandler(async (req, res) => {
       });
 
       if (user) {
-        // res.status(200).send({
-        //   user,
-        // });
+        res.status(200).send({
+          user,
+        });
 
         // ceci juste pour tester la réponse lourde
-        let responseSent = false;
-        setTimeout(() => {
-          if (!responseSent) {
-            res.status(200).send({
-              user,
-            });
-            responseSent = true;
-          }
-        }, 5000);
+        // let responseSent = false;
+        // setTimeout(() => {
+        //   if (!responseSent) {
+        //     res.status(200).send({
+        //       user,
+        //     });
+        //     responseSent = true;
+        //   }
+        // }, 5000);
       } else {
         res.status(404);
         throw new Error("User not found");
@@ -90,7 +95,6 @@ const registerUser = asyncHandler(async (req, res) => {
     work_phone: req.body.work_phone,
     password: req.body.password,
     status: req.body.status,
-    has_company: req.body.has_company,
   });
 
   if (user) {

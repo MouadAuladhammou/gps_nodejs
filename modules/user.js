@@ -92,7 +92,7 @@ router.delete("/delete/:id", (req, res) => {
 
 router.get("/:id/vehicle", (req, res) => {
   User.findOne({
-    where: { id: req.params.id, has_company: false, status: true },
+    where: { id: req.params.id, status: true },
     include: [
       {
         model: Vehicle,

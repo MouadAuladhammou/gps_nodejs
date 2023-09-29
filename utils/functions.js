@@ -121,6 +121,7 @@ const getVehicleWithSettings = async (imei) => {
 
         // ============ Initialize Type:4 => travel distance ============ //
         // récupérer le dernier historique de localisation enregistré dans mongodb (locations) pour calculer la distance parcourue de jour en cours
+        /*
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         yesterday.setHours(0, 0, 0, 0); // Début de la journée d'hier
@@ -139,11 +140,26 @@ const getVehicleWithSettings = async (imei) => {
           .select("ioElements") // Sélectionner uniquement la propriété "ioElements"
           .sort({ timestamp: -1 }) // Trier par ordre décroissant de "timestamp" pour obtenir le dernier enregistrement
           .exec();
+        */
+
+        const Location = createLocationModel(dataSettings.group.user_id);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0); // Début de la journée d'aujourd'hui
+        // Rechercher le dernier enregistrement jusqu'à la date d'hier (excluant la date d'aujourd'hui)
+        const lastRecordLocation = await Location.findOne({
+          imei: imei,
+          timestamp: {
+            $lt: todayStart, // Date de début d'aujourd'hui exclue
+          },
+        })
+          .select("ioElements") // Sélectionner uniquement la propriété "ioElements"
+          .sort({ timestamp: -1 }) // Trier par ordre décroissant de "timestamp" pour obtenir le dernier enregistrement
+          .exec();
 
         const totalOdometerValue =
-          lastRecordLocation?.ioElements?.["Total Odometer"] ?? 0;
+          lastRecordLocation?.ioElements?.["Total Odometer"] || null; // s'il n'y a pas d'enregistrements, initialiser le à 0
 
-        dataSettings.totalOdometerValue = totalOdometerValue || 0; // s'il n'y a pas d'enregistrements pour hier, initialiser le à 0
+        dataSettings.totalOdometerValue = totalOdometerValue;
       }
 
       return dataSettings;
@@ -270,7 +286,8 @@ const manageNotifications = async (vehicleWithSettings, values) => {
           values?.ioElements["Total Odometer"]
         );
         const vehicleTotalOdometer = parseInt(
-          vehicleWithSettings.totalOdometerValue
+          vehicleWithSettings.totalOdometerValue ||
+            values?.ioElements["Total Odometer"]
         );
         const exceededValue = currentTotalOdometer - vehicleTotalOdometer;
         if (exceededValue > rule.value) {

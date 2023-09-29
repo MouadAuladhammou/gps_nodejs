@@ -21,7 +21,7 @@ CREATE TABLE users (
 CREATE TABLE settings (
     id int NOT NULL AUTO_INCREMENT,
     name varchar(255) NOT NULL,
-    description varchar(400) NOT NULL,
+    description varchar(400) DEFAULT NULL,
     status TINYINT(1) DEFAULT 1,
     user_id int NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -59,10 +59,10 @@ CREATE TABLE groupes (
     user_id int DEFAULT NULL,
     setting_id int DEFAULT NULL,
     name varchar(255) NOT NULL UNIQUE,
-    description varchar(400) NOT NULL,
+    description varchar(400) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (setting_id) REFERENCES settings(id) ON DELETE CASCADE,
+    FOREIGN KEY (setting_id) REFERENCES settings(id) ON DELETE SET NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (id)
 );
@@ -79,7 +79,7 @@ CREATE TABLE vehicles (
     registration_number varchar(15) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (groupe_id) REFERENCES groupes(id) ON DELETE CASCADE,
+    FOREIGN KEY (groupe_id) REFERENCES groupes(id) ON DELETE SET NULL,
     PRIMARY KEY (id)
 );
 

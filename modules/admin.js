@@ -104,7 +104,6 @@ router.post("/add", (req, res) => {
     work_phone: req.body.work_phone,
     password: req.body.password,
     status: req.body.status,
-    has_company: req.body.has_company,
   })
     .then((result) => {
       let payload = { subject: result.id };
