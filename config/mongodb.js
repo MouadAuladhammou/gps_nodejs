@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 async function connectMongoDB() {
   try {
     await mongoose.connect(
-      "mongodb://admin:adminpassword@64.226.124.200:27017/db_gps"
+      "mongodb://admin:adminpassword@10.114.0.2:27017/db_gps" // On peut utiliser ip privé VPC ici si on a un load balancing entre plusieurs serveurs
     );
     console.log("MongoDB connection succeeded.");
   } catch (error) {

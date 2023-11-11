@@ -1,11 +1,24 @@
 const redisClientPromise = require("../config/redis");
-const DEFAULT_CACHE_EXPIRATION = process.env.DEFAULT_CACHE_EXPIRATION || 120; // secondes
+const DEFAULT_CACHE_EXPIRATION = process.env.DEFAULT_CACHE_EXPIRATION || 3600; // secondes
 const { Vehicle, Setting, User, Group, Rule } = require("../models/index.js");
 const { GeoConfiguration } = require("../models/geographic.js");
 const { createLocationModel } = require("../models/location.js");
 const pointInPolygon = require("point-in-polygon");
-const { convertToJson, convertMapToObject } = require("../utils/helpers");
+const {
+  convertToJson,
+  convertMapToObject,
+  getHourlyDateWithoutMinutes,
+} = require("../utils/helpers");
 
+// RabbitMQ
+const rabbitMQChannel = require("../config/rabbitmq");
+const mongoDBQueueName = "mongoDBQueue"; // nom de la file d'attente (Queue) RabbitMQ
+const smsQueueName = "smsQueue";
+
+const oneHourInMillis = 60 * 60 * 1000; // Une heure en millisecondes
+const redisKey = "gpsClientsConnected";
+
+// ======================================================== [ Fonctions App ] ======================================================== //
 // Fonction pour vérifier la validité d'une date et heure
 const isValidDateTime = (dateTimeString) => {
   const dateTimeRegex = /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/;
@@ -21,7 +34,7 @@ const parseDateTime = (dateTimeString) => {
 };
 
 // récupérer les données du cache si elles ne sont pas expirées, sinon récupérer les données de la base de données, puis les enregistrer dans le cache
-const getOrSetCache = async (key, callback) => {
+const getOrSetCache = async (key, cacheExpiration = null, callback) => {
   const redisClient = await redisClientPromise;
   return new Promise(async (resolve, reject) => {
     const dataHistory = await redisClient.get(key);
@@ -35,7 +48,7 @@ const getOrSetCache = async (key, callback) => {
         redisClient.set(key, JSON.stringify(freshDataHistory), {
           // EX: accepts a value with the cache duration in seconds.
           // NX: when set to true, it ensures that the set() method should only set a key that doesn’t already exist in Redis.
-          EX: DEFAULT_CACHE_EXPIRATION,
+          EX: cacheExpiration || DEFAULT_CACHE_EXPIRATION,
           NX: true,
         });
 
@@ -52,7 +65,7 @@ const getOrSetCache = async (key, callback) => {
 
 // Récupérer les paramètres de notifications de IMEI depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
 const getVehicleWithSettings = async (imei) => {
-  return await getOrSetCache(`dataSettings?imei=${imei}`, async () => {
+  return await getOrSetCache(`dataSettings?imei:${imei}`, 120, async () => {
     try {
       const vehicleInstance = await Vehicle.findOne({
         where: { imei: imei },
@@ -171,7 +184,7 @@ const getVehicleWithSettings = async (imei) => {
 
 // Récupérer tous les véhicules de tous les utilisateurs depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
 const getAllVehiclesGroupedByUser = async () => {
-  return await getOrSetCache(`vehiclesGroupedByUser`, async () => {
+  return await getOrSetCache(`vehiclesGroupedByUser`, null, async () => {
     try {
       const vehicles = await Vehicle.findAll({
         include: [
@@ -305,6 +318,291 @@ const manageNotifications = async (vehicleWithSettings, values) => {
   });
 };
 
+// ======================================================== [ Fonctions Rdis ] ======================================================== //
+// NB: Clé: latestDataFromGPSClients => contient les dernières données pour tous les appareils GPS en cours d'exécution (qui sont connectés en temps réel)
+
+// Fonction pour récupérer les données associées à un imei
+async function getLatestData(imei) {
+  const redisClient = await redisClientPromise;
+  // Si l'imei n'est pas dans la Map(), essayons de le récupérer depuis Redis.
+  const latestData = await redisClient.get(`latestDataFromGPSClients:${imei}`);
+  const parsedValue = latestData ? JSON.parse(latestData) : null; // Utilisez un objet vide par défaut
+  return parsedValue;
+}
+
+// Fonction pour ajouter ou mettre à jour les données dans la Map() et dans Redis
+async function setLatestData(imei, values) {
+  const redisClient = await redisClientPromise;
+  redisClient.setEx(
+    `latestDataFromGPSClients:${imei}`,
+    120,
+    JSON.stringify(values)
+  );
+}
+
+// Fonction pour supprimer les données de la Map() et de Redis
+async function deleteLatestData(imei) {
+  const redisClient = await redisClientPromise;
+  redisClient.del(`latestDataFromGPSClients:${imei}`);
+}
+
+// Fonction pour vérifier si un imei est connecté
+async function isIMEIConnected(imei) {
+  const redisClient = await redisClientPromise;
+  const exists = await redisClient.exists(`latestDataFromGPSClients:${imei}`);
+  return exists;
+}
+
+// Récupère toutes les clés qui correspondent à un modèle ("latestDataFromGPSClients")
+async function listKeysForGPSClients() {
+  const redisClient = await redisClientPromise;
+  const keys = await redisClient.keys("latestDataFromGPSClients:*");
+  console.log("Dernières clés pour les clients GPS connectés : ", keys);
+}
+
+// obtenir toutes les clés de notifications
+async function listKeysForLatestNotifications() {
+  const redisClient = await redisClientPromise;
+  const keys = await redisClient.keys("notification:*");
+  console.log(
+    "=> => => => => => Clés de notifications existants dans Redis  <= <= <= <= <= <="
+  );
+  console.log(keys);
+}
+
+async function setNotificationDataWithExpiration(notificationKey, data) {
+  const redisClient = await redisClientPromise;
+  // Stocker la notification dans Redis avec une expiration d'une heure
+  const { notification, userPhoneNumber } = data;
+  await redisClient.setEx(
+    `notification:${notificationKey}`,
+    oneHourInMillis / 1000,
+    JSON.stringify({
+      notification,
+      userPhoneNumber,
+    })
+  );
+}
+
+async function checkNotificationKeyExistence(notificationKey) {
+  const redisClient = await redisClientPromise;
+  const exists = await redisClient.exists(`notification:${notificationKey}`);
+  return !!exists;
+}
+
+// Ajouter un client à la liste Redis lors de la connexion
+// NB: "sadd", "srem" et "sismember" il s'agit que la variable "redisKey" n'accepetent pas las valeurs doublons.
+const addClientGpsToRedis = async (client) => {
+  const redisClient = await redisClientPromise;
+  const clientKey = client.remoteAddress + ":" + client.remotePort;
+  redisClient.sAdd(redisKey, clientKey, (err) => {
+    if (err) {
+      console.error("Erreur lors de l'ajout du client à Redis : ", err);
+    }
+  });
+};
+
+// Supprimer un client de la liste Redis lors de la déconnexion
+const removeClientGpsFromRedis = async (client) => {
+  const redisClient = await redisClientPromise;
+  const clientKey = client.remoteAddress + ":" + client.remotePort;
+  redisClient.sRem(redisKey, clientKey, (err) => {
+    if (err) {
+      console.error("Erreur lors de la suppression du client de Redis : ", err);
+    }
+  });
+};
+
+// Vérifier la présence d'un client dans la liste Redis
+const isClientGpsInRedis = async (client) => {
+  const redisClient = await redisClientPromise;
+  const clientKey = client.remoteAddress + ":" + client.remotePort;
+  const isExist = await redisClient.sIsMember(redisKey, clientKey);
+  return !!isExist;
+};
+
+const listGpsClientsConnected = async (imei = null, timestamp = null) => {
+  const redisClient = await redisClientPromise;
+  const gpsClientsConnected =
+    (await redisClient.sMembers(redisKey)) || "aucun client GPS connécté !";
+  imei && timestamp
+    ? console.log(
+        "imei detected",
+        imei,
+        "devices tcp connected : =============> ",
+        gpsClientsConnected,
+        timestamp
+      )
+    : console.log("Adresses IP du GPS connectés : ", gpsClientsConnected);
+};
+
+// ======================================================== [ Fonctions RabbitMQ ] ======================================================== //
+// Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
+const publishDataToQueues = async (imei, data) => {
+  const message = {
+    imei: imei,
+    gps: data.gps,
+    ioElements: data.ioElements,
+    timestamp: data.timestamp,
+    hour: data.timestamp.getHours(),
+    minute: data.timestamp.getMinutes(),
+    notifications: data.notifications,
+    userPhoneNumber: data.userPhoneNumber,
+    created_at: new Date(),
+  };
+
+  try {
+    const channel = await rabbitMQChannel;
+
+    // Envoyer le message à la file d'attente pour MongoDB
+    channel.sendToQueue(
+      mongoDBQueueName,
+      Buffer.from(JSON.stringify(message)),
+      {
+        persistent: true,
+      }
+    );
+
+    // Envoyer le message à la file d'attente pour l'envoi des SMS
+    channel.sendToQueue(smsQueueName, Buffer.from(JSON.stringify(message)), {
+      persistent: true,
+    });
+  } catch (error) {
+    console.error("Error sending message to RabbitMQ:", error);
+  }
+};
+
+// Créer une connexion à RabbitMQ et consommez les messages
+const consumeMessagesForMongoDB = async () => {
+  try {
+    const channel = await rabbitMQChannel;
+
+    // prefetch: La prélecture du canal est une fonctionnalité qui permet de spécifier combien de messages un consommateur peut recevoir et traiter simultanément à partir de la file d'attente
+    // il est utilisé pour limiter le nombre de messages préchargés par le consommateur, vous indiquez à RabbitMQ de n'envoyer qu'un seul message à la fois au consommateur
+    // chaque consommateur ne recevra qu'un seul message à la fois et ne passera au message suivant qu'après avoir traité le précédent.
+    channel.prefetch(10);
+
+    // Consommer les messages de la file d'attente (Queue)
+    await channel.consume(mongoDBQueueName, async (message) => {
+      if (message !== null) {
+        try {
+          const gpsData = JSON.parse(message.content.toString());
+
+          // Rappelle: chaque ustilisateur a sa propre collection contenant les données de ses véhicules (les données de GPS)
+          const cachedAllVehiclesGroupedByUser =
+            await getAllVehiclesGroupedByUser();
+
+          // Trouver le véhicule associé à l'IMEI
+          const { imei } = gpsData;
+          let vehicleAssociatedWithImei = null;
+
+          // Utiliser Array.prototype.some() pour chercher le véhicule correspondant à l'IMEI
+          Object.values(cachedAllVehiclesGroupedByUser).some((vehicles) => {
+            vehicleAssociatedWithImei = vehicles.find(
+              (vehicle) => vehicle.imei === imei
+            );
+            return !!vehicleAssociatedWithImei; // Renvoie true pour sortir de la boucle si un véhicule est trouvé
+          });
+
+          if (vehicleAssociatedWithImei) {
+            const userId = vehicleAssociatedWithImei.group.user_id; // Utiliser "user_id" pour déterminer le nom de la collection
+            // Créer le modèle pour la collection 'user_x__locations'
+            const Location = createLocationModel(userId);
+            // const Location = createLocationModel(3); // ceci pour test
+            // Insérer les données dans MongoDB
+            await Location.create(gpsData);
+            console.log(
+              `Message inserted into MongoDB in collection: user_${userId}__locations`,
+              gpsData
+            );
+
+            // Acknowledge the message: utilisé pour confirmer au serveur RabbitMQ que le message a été traité avec succès et peut être supprimé de la file d'attente.
+            channel.ack(message);
+          } else {
+            // Gérer le cas où l'IMEI n'est pas trouvé dans les véhicules
+            throw new Error("IMEI not found in vehicles.");
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          // Rejeter (reject) le message en cas d'erreur pour qu'il puisse être traité à nouveau
+          channel.reject(message, false);
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error connecting to RabbitMQ:", error);
+    // process.exit(1); // Quitter l'application en cas d'erreur
+  }
+};
+
+const consumeMessagesForSMS = async () => {
+  const channel = await rabbitMQChannel;
+  channel.prefetch(10);
+  // Consommer les messages de la file d'attente (Queue)
+  await channel.consume(smsQueueName, async (message) => {
+    console.log(" ");
+    console.log(" ");
+    console.log(
+      "= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = S"
+    );
+    await listKeysForLatestNotifications();
+
+    if (message !== null) {
+      try {
+        const gpsData = JSON.parse(message.content.toString());
+        const { imei, timestamp, notifications, userPhoneNumber } = gpsData;
+        const hourlyDate = getHourlyDateWithoutMinutes(timestamp);
+
+        if (
+          Array.isArray(notifications) &&
+          notifications.length > 0 &&
+          userPhoneNumber
+        ) {
+          notifications.forEach(async (notification) => {
+            const notificationKey = `${imei}__${notification.type}__${hourlyDate}`;
+
+            const notifKeyIsExist = await checkNotificationKeyExistence(
+              notificationKey
+            );
+            if (!notifKeyIsExist) {
+              await setNotificationDataWithExpiration(notificationKey, {
+                notification,
+                userPhoneNumber,
+              });
+
+              // Traitement de l'envoi de SMS en utilisant l'API ...
+              console.warn(
+                `✉️✉️ 🚀🚀 SMS a été envoyé vers le numéro ${userPhoneNumber} pour la notification : ${notification.type}`
+              );
+            } else {
+              console.warn(
+                `✉️✉️ 🛑🛑 Le dernier SMS envoyé pour la notification ${notification.type} n'a pas dépassé une heure`
+              );
+            }
+          });
+
+          // Confirmer la réception et le traitement du message
+          channel.ack(message);
+        } else {
+          console.warn(
+            "Pas de notifications dans le message, le message sera rejeté."
+          );
+          // Gérer le cas où la variable "notifications" ne contient pas de notification à envoyer
+          channel.reject(message, false);
+        }
+      } catch (error) {
+        console.error("Erreur :", error);
+        channel.reject(message, false);
+      }
+    }
+    console.log(
+      "= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = E"
+    );
+    console.log(" ");
+    console.log(" ");
+  });
+};
+
 module.exports = {
   isValidDateTime,
   parseDateTime,
@@ -312,4 +610,21 @@ module.exports = {
   getVehicleWithSettings,
   manageNotifications,
   getAllVehiclesGroupedByUser,
+
+  getLatestData,
+  setLatestData,
+  deleteLatestData,
+  isIMEIConnected,
+  listKeysForGPSClients,
+  listKeysForLatestNotifications,
+  setNotificationDataWithExpiration,
+  checkNotificationKeyExistence,
+  addClientGpsToRedis,
+  removeClientGpsFromRedis,
+  isClientGpsInRedis,
+  listGpsClientsConnected,
+
+  publishDataToQueues,
+  consumeMessagesForMongoDB,
+  consumeMessagesForSMS,
 };

@@ -1,5 +1,5 @@
 const amqp = require("amqplib");
-const rabbitMQUrl = "amqp://localhost"; // URL RabbitMQ
+const rabbitMQUrl = "amqp://admin:admin@localhost"; // URL RabbitMQ
 const mongoDBQueueName = "mongoDBQueue"; // nom de la file d'attente (Queue) pour enregistrer les données dans la base de données MongoDB
 const smsQueueName = "smsQueue"; // nom de la file d'attente (Queue) pour l'envoi de messages SMS
 

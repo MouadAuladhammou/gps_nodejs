@@ -20,7 +20,12 @@ const getLocations = asyncHandler(async (req, res) => {
   } = req.query;
 
   const dataHistory = await getOrSetCache(
-    `dataHistory?imei=${imei}&page=${page}&limit=${limit}&start_date=${start_date}&end_date=${end_date}&range=${range}&hour=${hour}&notifications_only=${notifications_only}`,
+    `dataHistory?imei:${imei}&page=${page}&limit=${limit}&start_date=${encodeURIComponent(
+      start_date
+    )}&end_date=${encodeURIComponent(
+      end_date
+    )}&range=${range}&hour=${hour}&notifications_only=${notifications_only}`,
+    60,
     async () => {
       const Location = createLocationModel(req.userId);
       let startDate, endDate;

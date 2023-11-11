@@ -1,15 +1,50 @@
 const express = require("express");
 const app = express();
+
 const bodyParser = require("body-parser");
 app.use(bodyParser.json());
-// const expressDelay = require("express-delay");
-// app.use(expressDelay(5000)); // toutes les réponses seront retardées de 5 secondes grâce au middleware "express-delay".
+
+// Allow cross-origin
+const cors = require("cors");
+app.use(cors({ origin: "*" }));
+
+// Toutes les réponses de APIs seront retardées de 5 secondes grâce au middleware "express-delay"
+const expressDelay = require("express-delay");
+// app.use(expressDelay(5000));
+
+// Middleware avec un délai de timeout de 60 secondes
+const timeout = require("connect-timeout");
+app.use(timeout("60s"));
+
 const schedule = require("node-schedule");
+const rule = new schedule.RecurrenceRule();
+rule.hour = 21;
+rule.minute = 47;
+schedule.scheduleJob(rule, async () => {
+  // Traitement quotidien à 21h47 ...
+});
 
 const {
   getVehicleWithSettings,
   manageNotifications,
   getAllVehiclesGroupedByUser,
+
+  getLatestData,
+  setLatestData,
+  deleteLatestData,
+  isIMEIConnected,
+  listKeysForGPSClients,
+  listKeysForLatestNotifications,
+  setNotificationDataWithExpiration,
+  checkNotificationKeyExistence,
+  addClientGpsToRedis,
+  removeClientGpsFromRedis,
+  isClientGpsInRedis,
+  listGpsClientsConnected,
+
+  publishDataToQueues,
+  consumeMessagesForMongoDB,
+  consumeMessagesForSMS,
 } = require("./utils/functions");
 
 const {
@@ -21,36 +56,13 @@ const {
 const net = require("net");
 const Parser = require("teltonika-parser");
 const binutils = require("binutils64");
-const { Subject } = require("rxjs");
-const latestDataFromGPSClients = new Map(); // contient les dernières données pour tous les appareils GPS en cours d'exécution (qui sont connectés en temps réel)
-const gpsClientsSubject = new Subject(); // initialiser une variable de type "Subject" pour détecter les changements en temps réel
-const gpsClientsConnected = []; // enregistrer les adresses IP TCP des appareils GPS connectés
-
-// Socket Web client (App)
-const server = require("http").createServer(app);
-const io = require("socket.io")(server, { cors: { origin: "*" } });
 
 // Connecter aux bases de données
+const redisClientPromise = require("./config/redis");
 const connectMongoDB = require("./config/mongodb.js");
 const { connectMySQL } = require("./config/mysql.js");
 connectMongoDB();
 connectMySQL();
-
-// RabbitMQ
-const rabbitMQChannel = require("./config/rabbitmq");
-const mongoDBQueueName = "mongoDBQueue"; // nom de la file d'attente (Queue) RabbitMQ
-const smsQueueName = "smsQueue";
-
-const ExpiringMap = require("./utils/classes/expiringMap.js");
-const oneHourInMillis = 60 * 60 * 1000; // Une heure en millisecondes
-const latestNotifications = new ExpiringMap(oneHourInMillis); // Utilisation Map de la structure "ExpiringMap" avec un delai d'expiration
-
-// Allow cross-origin
-const cors = require("cors");
-app.use(cors({ origin: "*" }));
-
-// Models
-const { createLocationModel } = require("./models/location.js");
 
 // Modules
 const location = require("./modules/location.js");
@@ -62,10 +74,6 @@ const group = require("./modules/group.js");
 const rules = require("./modules/rule.js");
 const settings = require("./modules/settings.js");
 
-// Middleware avec un délai de timeout de 5 secondes
-var timeout = require("connect-timeout");
-app.use(timeout("60s"));
-
 // routes API :
 app.use("/api/locations", location);
 app.use("/api/users", user);
@@ -75,590 +83,529 @@ app.use("/api/groups", group);
 app.use("/api/rules", rules);
 app.use("/api/settings", settings);
 
-// Middleware error handler
-const errorHandler = require("./middleware/errorHanadler");
-app.use(errorHandler);
+// ======================================================== [ Test API ] ======================================================== //
+app.get("/heavy", (req, res) => {
+  let total = 0;
+  for (let i = 0; i < 5_000_000; i++) {
+    total++;
+  }
+  res.send(`The result of the CPU intensive task is ${total}\n`);
+});
+// ============================================================================================================================== //
 
 (async () => {
-  // traitement en mode async ...
-})();
+  var cluster = require("cluster");
+  var os = require("os");
 
-const rule = new schedule.RecurrenceRule();
-rule.hour = 21;
-rule.minute = 47;
-schedule.scheduleJob(rule, async () => {
-  // Traitement quotidien à 21h47 ...
-});
-
-// ============================================================================================================================== //
-// =========================================================[ RabbitMQ ]========================================================= //
-// ============================================================================================================================== //
-// Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
-async function publishDataToQueues(imei, data) {
-  const message = {
-    imei: imei,
-    gps: data.gps,
-    ioElements: data.ioElements,
-    timestamp: data.timestamp,
-    hour: data.timestamp.getHours(),
-    minute: data.timestamp.getMinutes(),
-    notifications: data.notifications,
-    userPhoneNumber: data.userPhoneNumber,
-    created_at: new Date(),
-  };
-
-  try {
-    const channel = await rabbitMQChannel;
-
-    // Envoyer le message à la file d'attente pour MongoDB
-    channel.sendToQueue(
-      mongoDBQueueName,
-      Buffer.from(JSON.stringify(message)),
-      {
-        persistent: true,
-      }
-    );
-
-    // Envoyer le message à la file d'attente pour l'envoi des SMS
-    channel.sendToQueue(smsQueueName, Buffer.from(JSON.stringify(message)), {
-      persistent: true,
-    });
-  } catch (error) {
-    console.error("Error sending message to RabbitMQ:", error);
-  }
-}
-
-// Créer une connexion à RabbitMQ et consommez les messages
-const consumeMessagesForMongoDB = async () => {
-  try {
-    const channel = await rabbitMQChannel;
-
-    // prefetch: La prélecture du canal est une fonctionnalité qui permet de spécifier combien de messages un consommateur peut recevoir et traiter simultanément à partir de la file d'attente
-    // il est utilisé pour limiter le nombre de messages préchargés par le consommateur, vous indiquez à RabbitMQ de n'envoyer qu'un seul message à la fois au consommateur
-    // chaque consommateur ne recevra qu'un seul message à la fois et ne passera au message suivant qu'après avoir traité le précédent.
-    // channel.prefetch(1);
-
-    // Consommer les messages de la file d'attente (Queue)
-    await channel.consume(mongoDBQueueName, async (message) => {
-      if (message !== null) {
-        try {
-          const gpsData = JSON.parse(message.content.toString());
-
-          // Rappelle: chaque ustilisateur a sa propre collection contenant les données de ses véhicules (les données de GPS)
-          const cachedAllVehiclesGroupedByUser =
-            await getAllVehiclesGroupedByUser();
-
-          // Trouver le véhicule associé à l'IMEI
-          const { imei } = gpsData;
-          let vehicleAssociatedWithImei = null;
-
-          // Utiliser Array.prototype.some() pour chercher le véhicule correspondant à l'IMEI
-          Object.values(cachedAllVehiclesGroupedByUser).some((vehicles) => {
-            vehicleAssociatedWithImei = vehicles.find(
-              (vehicle) => vehicle.imei === imei
-            );
-            return !!vehicleAssociatedWithImei; // Renvoie true pour sortir de la boucle si un véhicule est trouvé
-          });
-
-          if (vehicleAssociatedWithImei) {
-            const userId = vehicleAssociatedWithImei.group.user_id; // Utiliser "user_id" pour déterminer le nom de la collection
-            // Créer le modèle pour la collection 'user_x__locations'
-            const Location = createLocationModel(userId);
-            // Insérer les données dans MongoDB
-            await Location.create(gpsData);
-            console.log(
-              `Message inserted into MongoDB in collection: user_${userId}__locations`,
-              gpsData
-            );
-
-            // Acknowledge the message: utilisé pour confirmer au serveur RabbitMQ que le message a été traité avec succès et peut être supprimé de la file d'attente.
-            channel.ack(message);
-          } else {
-            // Gérer le cas où l'IMEI n'est pas trouvé dans les véhicules
-            throw new Error("IMEI not found in vehicles.");
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          // Rejeter (reject) le message en cas d'erreur pour qu'il puisse être traité à nouveau
-          channel.reject(message, false);
-        }
-      }
-    });
-  } catch (error) {
-    console.error("Error connecting to RabbitMQ:", error);
-    // process.exit(1); // Quitter l'application en cas d'erreur
-  }
-};
-
-const consumeMessagesForSMS = async () => {
-  const channel = await rabbitMQChannel;
-  // Consommer les messages de la file d'attente (Queue)
-  await channel.consume(smsQueueName, async (message) => {
-    console.log(" ");
-    console.log(" ");
-    console.log(
-      "= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
-    );
-    console.log(
-      "=> => => => => => all latestNotifications <= <= <= <= <= <=",
-      latestNotifications.listAll()
-    );
-    if (message !== null) {
-      try {
-        const gpsData = JSON.parse(message.content.toString());
-        const { imei, timestamp, notifications, userPhoneNumber } = gpsData;
-        const hourlyDate = getHourlyDateWithoutMinutes(timestamp);
-
-        if (
-          Array.isArray(notifications) &&
-          notifications.length > 0 &&
-          userPhoneNumber
-        ) {
-          notifications.forEach((notification) => {
-            const notificationKey = `${imei}__${notification.type}__${hourlyDate}`;
-
-            if (!latestNotifications.has(notificationKey)) {
-              latestNotifications.set(notificationKey, {
-                notification,
-                userPhoneNumber,
-              });
-
-              // Traitement de l'envoi de SMS en utilisant l'API ...
-              console.warn(
-                `=> SMS a été envoyé vers le numéro ${userPhoneNumber} pour la notification : ${notification.type}`
-              );
-            } else {
-              console.warn(
-                `=> Le dernier SMS envoyé pour la notification ${notification.type} n'a pas dépassé une heure`
-              );
-            }
-          });
-
-          // Confirmer la réception et le traitement du message
-          channel.ack(message);
-        } else {
-          console.warn(
-            "Pas de notifications dans le message, le message sera rejeté."
-          );
-          // Gérer le cas où la variable "notifications" ne contient pas de notification à envoyer
-          channel.reject(message, false);
-        }
-      } catch (error) {
-        console.error("Erreur :", error);
-        channel.reject(message, false);
-      }
+  if (cluster.isMaster) {
+    console.log(`Master ${process.pid} is running ⌛️`);
+    for (var i = 0; i < os.cpus().length; i++) {
+      cluster.fork();
     }
-    console.log(
-      "= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = ="
-    );
-    console.log(" ");
-    console.log(" ");
-  });
-};
 
-// consumeMessagesForMongoDB();
-consumeMessagesForSMS();
+    cluster.on("exit", function (worker, code, signal) {
+      console.log("worker " + worker.process.pid + " died");
+    });
+  } else {
+    console.log(`Worker ${process.pid} started ✅`);
+    const { createServer } = require("http");
+    const httpServer = createServer(app);
 
-// ============================================================================================================================== //
-// ======================================================[ Socket GPS TCP ]====================================================== //
-// ============================================================================================================================== //
-// NB:
-// Ce code ne permet pas de créer plusieurs serveurs pour chaque client connecté.
-// Il crée simplement un serveur TCP (trackingServer) avec une connexion active pour chaque client GPS connecté.
-// Les clients GPS se connectent au serveur et chaque fois qu'un client se connecte, une nouvelle connexion est établie. Toutes les connexions sont gérées par le même serveur.
+    const io = require("socket.io")(httpServer, {
+      transports: ["websocket", "polling"],
+    });
 
-// observer les changements de valeurs IMEI
-const observeChanges = async (imei, values) => {
-  const previousValues = latestDataFromGPSClients.get(imei);
-  latestDataFromGPSClients.set(imei, values);
-  // Vérifie si les valeurs ont changé
-  if (!hasSameImeiAndTimestamp(previousValues, values)) {
-    // Initialisation de données de notification (étape 1) :
-    const vehicleWithSettings = await getVehicleWithSettings(imei);
+    // Methode 1:
+    // const { createAdapter } = require("@socket.io/redis-adapter");
+    const pubClient = await redisClientPromise;
+    const subClient = pubClient.duplicate(); // créer une copie indépendante de "redisClient" appelée "subscriber". (NB: c'est obligatoire !)
+    await subClient.connect();
+    // io.adapter(createAdapter(pubClient, subClient));
 
-    // Gestion des notifications (étape 2) :
-    const valuesWithNotifs = await manageNotifications(
-      vehicleWithSettings,
-      values
-    );
-
-    // Enregistrer la notification en tant que notification horaire (étape 3) :
-    // NB: Si une notification du même type est détectée dans un délai n'excédant pas une heure, alors elle n'est pas enregistrée en tant que notification qui doit être affichée sur la NavBar
-    const hourlyDate = getHourlyDateWithoutMinutes(values.timestamp);
-    if (
-      Array.isArray(valuesWithNotifs.notifications) &&
-      valuesWithNotifs.notifications.length > 0
-    ) {
-      valuesWithNotifs.notifications.forEach((notification) => {
-        const notificationKey = `${imei}__${notification.type}__${hourlyDate}`;
-        // Que l'utilisateur soit connecté ou non,enregistrer la notification (par heure) sous invisible (viewedOnNavBar = false) pour l'afficher dans NavBar comme étant une notification invisible.
-        !latestNotifications.has(notificationKey) &&
-          (notification.viewedOnNavBar = false);
+    // Methode 2:
+    const { createAdapter } = require("socket.io-redis");
+    io.adapter(createAdapter(pubClient, subClient));
+    // ======================================================== [ Test API ] ======================================================== //
+    let latitude = 35.6791;
+    let longitude = -5.3291;
+    let speed = 130;
+    app.post("/api/test/post/location", (req, res) => {
+      latitude = latitude - 0.0002;
+      longitude = longitude - 0.0002;
+      speed = Math.floor(Math.random() * (300 - 120 + 1)) + 120;
+      const clientIP = req.socket.remoteAddress + ":" + req.socket.remotePort;
+      const Server = "Server 2";
+      const data = req.body;
+      observeChanges("350612076413275", {
+        imei: "350612076413275",
+        vehicle_id: "350612076413275",
+        gps: {
+          latitude: latitude,
+          longitude: longitude,
+          speed: speed,
+        },
+        ioElements: {
+          Ignition: Math.round(Math.random()),
+          Movement: Math.round(Math.random()),
+          "GSM Signal Strength": 5,
+          "Sleep Mode": 0,
+          "GNSS Status": 1,
+          PDOP: 16,
+          HDOP: 13,
+          "Ext Voltage": 0,
+          "Battery Voltage": 3214,
+          "Battery Current": 0,
+          "GSM Operator": 60401,
+          "Total Odometer": 3116,
+        },
+        timestamp: new Date(),
+        created_at: "date time",
       });
-    }
+      res.json({
+        message:
+          clientIP +
+          " - Données reçues avec succès ! Répondé par serveur : " +
+          Server,
+      });
+    });
+    // ============================================================================================================================== //
 
-    // S'il a changé, effectuer l'action "next" sur la variable "gpsClientsSubject" afin qu'elle soit détectée et accessible dans le traitement du socket Web
-    gpsClientsSubject.next({ imei, values: valuesWithNotifs });
+    consumeMessagesForMongoDB();
+    consumeMessagesForSMS();
 
-    // Émet l'état de la connexion connectée aux sockets Web respectives
-    const isConnected = latestDataFromGPSClients.has(imei);
-    emitIMEIConnectionStatus(imei, `device_imei_connected_${imei}`, {
-      isConnected,
+    // ============================================================================================================================== //
+    // ======================================================[ Socket GPS TCP ]====================================================== //
+    // ============================================================================================================================== //
+    // NB:
+    // Ce code ne permet pas de créer plusieurs serveurs pour chaque client connecté.
+    // Il crée simplement un serveur TCP (trackingServer) avec une connexion active pour chaque client GPS connecté.
+    // Les clients GPS se connectent au serveur et chaque fois qu'un client se connecte, une nouvelle connexion est établie. Toutes les connexions sont gérées par le même serveur.
+
+    // observer les changements de valeurs IMEI
+    const observeChanges = async (imei, values) => {
+      const previousValues = await getLatestData(imei);
+      setLatestData(imei, values);
+      // Vérifier si les valeurs ont changé
+      if (!hasSameImeiAndTimestamp(previousValues, values)) {
+        // Initialisation de données de notification (étape 1) :
+        const vehicleWithSettings = await getVehicleWithSettings(imei);
+
+        // Gestion des notifications (étape 2) :
+        const valuesWithNotifs = await manageNotifications(
+          vehicleWithSettings,
+          values
+        );
+
+        // Enregistrer la notification en tant que notification horaire (étape 3) :
+        // NB: Si une notification du même type est détectée dans un délai n'excédant pas une heure, alors elle n'est pas enregistrée en tant que notification qui doit être affichée sur la NavBar
+        const hourlyDate = getHourlyDateWithoutMinutes(values.timestamp);
+        if (
+          Array.isArray(valuesWithNotifs.notifications) &&
+          valuesWithNotifs.notifications.length > 0
+        ) {
+          // NB: methode "forEach" ne prend pas en charge correctement les fonctions asynchrones. Pour garantir que la variable "valuesWithNotifs" est modifié avant de l'envoyer, on peut utiliser une boucle "for...of" avec async/await, qui prend en charge correctement les opérations asynchrones.
+          for (const notification of valuesWithNotifs.notifications) {
+            const notificationKey = `${imei}__${notification.type}__${hourlyDate}`;
+            // Que l'utilisateur soit connecté ou non,enregistrer la notification (par heure) sous invisible (viewedOnNavBar = false) pour l'afficher dans NavBar comme étant une notification invisible.
+            const isSameNotifOnHour = await checkNotificationKeyExistence(
+              notificationKey
+            );
+            !isSameNotifOnHour && (notification.viewedOnNavBar = false);
+          }
+        }
+
+        // Initialiser un canal "gpsDataChannel" pour détecter les changements en temps réel des données du GPS connecté via TCP afin qu'elles soient détectées et accessibles dans le traitement du socket Web.
+        const redisClient = await redisClientPromise;
+        redisClient.publish(
+          "gpsDataChannel",
+          JSON.stringify({ imei, values: valuesWithNotifs })
+        );
+
+        // Envoyer les données à RabbitMQ pour consommation
+        publishDataToQueues(imei, valuesWithNotifs);
+      }
+    };
+
+    const CLIENT_TIMEOUT_DURATION =
+      parseInt(process.env.CLIENT_TIMEOUT_DURATION_MS) || 60000;
+
+    const trackingServer = net.createServer((c) => {
+      // Initialiser la variable IMEI provenant de la nouvelle connexion TCP
+      let imei;
+
+      // Définir le délai d'expiration de la connexion TCP de l'appareil
+      c.setKeepAlive(true, 500);
+      c.setNoDelay(true);
+      // définir 60 secondes de TIMEOUT pour chaque appareil GPS connecté, si cela se produit, il sera automatiquement déconnecté du serveur
+      c.setTimeout(CLIENT_TIMEOUT_DURATION, () => {
+        closeTCPIPConnection();
+      });
+
+      // ceci juste pour tester les erreurs de connexions TCP
+      // setInterval(() => {
+      //   c.emit("error", new Error("*** Custom error message ***"));
+      // }, 138000);
+
+      // Fermer la connexion TCP
+      async function closeTCPIPConnection() {
+        console.log("connexion", c.remoteAddress + ":" + c.remotePort);
+        // Vérifier si la connexion correspondant à la variable "c" est trouvée
+        const isClientGpsConnected = await isClientGpsInRedis(c);
+        if (isClientGpsConnected) {
+          removeClientGpsFromRedis(c);
+          console.log(
+            "✂️✂️ connexion TCP will be closed",
+            c.remoteAddress + ":" + c.remotePort
+          );
+
+          // Émet un statut déconnecté pour les sockets Web respectifs dans toutes les Workers
+          const redisClient = await redisClientPromise;
+          redisClient.publish(
+            "gpsDataChannel",
+            JSON.stringify({ imei, values: null, isDisconnected: true })
+          );
+        }
+
+        await deleteLatestData(imei);
+        c.destroy(); // NB: ici, il déclenche => c.on("close", () => { ... });
+        c.end(); // NB: cela n'a aucun impact !
+      }
+
+      // Créer une nouvelle connexion avec un nouveau client GPS connecté au même serveur
+      c.on("data", (data) => {
+        try {
+          let buffer = data;
+          let parser = new Parser(buffer);
+          if (parser.isImei) {
+            imei = parser.imei;
+            c.write(Buffer.alloc(1, 1)); // send ACK for IMEI
+            console.log("client device imei connected : " + parser.imei);
+
+            addClientGpsToRedis(c);
+            console.log(
+              "🏁🏁 new client device imei connected from" +
+                c.remoteAddress +
+                ":" +
+                c.remotePort
+            );
+          } else {
+            let avl = parser.getAvl();
+            // console.log("Avl: ", JSON.stringify(avl));
+            // Récupérer des données de l'appareil GPS
+            avl.records?.map(
+              async ({ gps, timestamp, ioElements: elements }) => {
+                let ioElements = {};
+                for (let key in elements) {
+                  if (elements.hasOwnProperty(key)) {
+                    let data = elements[key].value;
+                    ioElements[elements[key].label] = data;
+                  }
+                }
+
+                // Enregistrer les données dans la base de données MongoDB
+                console.log("gps.longitude reçu >>> ", gps.longitude);
+                console.log("gps.latitude reçu >>> ", gps.latitude);
+                if (gps.longitude && gps.latitude) {
+                  // mettre à jour les données du client GPS avec les dernières données reçues pour etre détecté et envoyé par la suite dans les web sockets
+                  observeChanges(imei, { gps, timestamp, ioElements, imei });
+                }
+
+                // réinitialiser le délai lorsqu'il y a des données
+                c.setTimeout(CLIENT_TIMEOUT_DURATION);
+
+                await listGpsClientsConnected(imei, timestamp);
+              }
+            );
+
+            let writer = new binutils.BinaryWriter();
+            writer.WriteInt32(avl.number_of_data);
+
+            let response = writer.ByteBuffer;
+            c.write(response); // send ACK
+          }
+        } catch (e) {
+          console.log("❗️❓", e);
+        }
+      });
+
+      c.on("close", () => {
+        console.log("close => client device imei disconnected ... ! ");
+        closeTCPIPConnection();
+      });
+
+      c.on("end", () => {
+        console.log("end => client device imei disconnected ... ! ");
+        closeTCPIPConnection();
+      });
+
+      c.on("error", (err) => {
+        console.log("error => client device imei connection error : ", err);
+        closeTCPIPConnection();
+      });
     });
 
-    // Envoyer les données à RabbitMQ pour consommation
-    publishDataToQueues(imei, valuesWithNotifs);
-  }
-};
-
-const CLIENT_TIMEOUT_DURATION =
-  parseInt(process.env.CLIENT_TIMEOUT_DURATION_MS) || 60000;
-
-const trackingServer = net.createServer((c) => {
-  let imei; // Initialiser la variable IMEI provenant de la nouvelle connexion TCP
-
-  // Définir le délai d'expiration de la connexion TCP de l'appareil
-  c.setKeepAlive(true, 500);
-  c.setNoDelay(true);
-  // définir 60 secondes de TIMEOUT pour chaque appareil GPS connecté, si cela se produit, il sera automatiquement déconnecté du serveur
-  c.setTimeout(CLIENT_TIMEOUT_DURATION, () => {
-    closeTCPIPConnection();
-  });
-
-  // ceci juste pour tester les erreurs de connexions TCP
-  /*
-  setInterval(() => {
-    c.emit("error", new Error("*** Custom error message ***"));
-  }, 138000);
-  */
-
-  // Fermer la connexion TCP
-  function closeTCPIPConnection() {
-    console.log("connexion", c.remoteAddress + ":" + c.remotePort);
-    // Trouver l'index de l'élément correspondant à la variable "c"
-    const index = gpsClientsConnected.findIndex(
-      (element) => element === c.remoteAddress + ":" + c.remotePort
-    );
-    // Vérifier si l'élément a été trouvé
-    if (index !== -1) {
-      gpsClientsConnected.splice(index, 1); // Supprimer l'élément à l'index correspondant
-      console.log(
-        "connexion will be closed",
-        c.remoteAddress + ":" + c.remotePort
-      );
-    }
-
-    // Émet un statut déconnecté pour les sockets Web respectifs
-    emitIMEIConnectionStatus(imei, `device_imei_connected_${imei}`, {
-      isConnected: false,
+    trackingServer.listen(5002, "0.0.0.0", () => {
+      console.log("Server listening on 64.226.124.200:5002");
     });
 
-    latestDataFromGPSClients.delete(imei);
-    c.destroy(); // NB: ici, il déclenche => c.on("close", () => { ... });
-    c.end(); // NB: cela n'a aucun impact !
-  }
+    trackingServer.on("error", (err) => {
+      console.error(`Server TCP error: ${err}`);
+    });
 
-  // Créer une nouvelle connexion avec un nouveau client GPS connecté au même serveur
-  c.on("data", (data) => {
+    // Marque le serveur pour qu'il ne soit plus considéré comme bloquant
+    // trackingServer.unref();
+
+    // ============================================================================================================================== //
+    // ==================================================[ Socket Web Application ]================================================== //
+    // ============================================================================================================================== //
+    io.on("connection", (socket) => {
+      console.log(`💻💻 Nouvelle connexion Web socket - id: ${socket.id}`);
+
+      socket.on("join", (imeis, callback) => {
+        console.log("join ", imeis);
+        if (typeof callback === "function") {
+          callback({ status: "ok" });
+          imeis.forEach(async (imei) => {
+            socket.join(imei);
+            const isConnected = await isIMEIConnected(imei);
+            broadcast(imei, `device_imei_connected_${imei}`, {
+              isConnected,
+            });
+          });
+        }
+      });
+
+      socket.on("join_notifs", (imeis, callback) => {
+        console.log("join_notifs ", imeis);
+        if (typeof callback === "function") {
+          callback({ status: "ok" });
+          imeis.forEach((imei) => {
+            socket.join(imei);
+          });
+        }
+      });
+
+      socket.on("disconnecting", () => {
+        console.log("disconnecting...");
+        // Quitter toutes les salles (rooms) pour le socket Web auquel il appartient
+        // NB: La variable "socket.rooms" contient également le même ID de socket web concerné, mais cela ne pose aucun problème
+        socket.rooms.forEach((imei) => {
+          socket.leave(imei); // Quitter la salle (identifiée par IMEI) correspondante
+        });
+
+        console.log(`✂️✂️ Socket Web ${socket.id} a été déconnecté`);
+      });
+    });
+
+    // Détecter les données qui ont changé depuis un IMEI (GPS), puis à les envoyer à tous les sockets Web pertinents (NB: incluant les sockets de type "notif")
+    // NB: "values" ce sont des données qui sont envoyées par l'appareil GPS
     try {
-      let buffer = data;
-      let parser = new Parser(buffer);
-      if (parser.isImei) {
-        imei = parser.imei;
-        // observeChanges(parser.imei, { imei: parser.imei });
-        c.write(Buffer.alloc(1, 1)); // send ACK for IMEI
-        console.log("client device imei connected : " + parser.imei);
-        gpsClientsConnected.push(c.remoteAddress + ":" + c.remotePort);
+      const redisClient = await redisClientPromise;
+      const subscriber = redisClient.duplicate(); // créer une copie indépendante de "redisClient" appelée "subscriber". (NB: c'est obligatoire !)
+
+      await subscriber.connect();
+      // await subscriber.auth({ password: "admin" });
+      // NB Important: Tous les Workers du serveur actuel ou d'autres serveurs peuvent y accéder à ce "message" (Si on utilise Ip Privé dans la config Redis)
+      await subscriber.subscribe("gpsDataChannel", (message) => {
+        const {
+          imei,
+          values,
+          isDisconnected = null,
+        } = JSON.parse(message.toString());
+
+        // On peut maintenant gérer les données et les diffuser sur les sockets Web concernées
+        const socketIdsInRoom = Array.from(
+          io.sockets.adapter.rooms.get(imei) || []
+        );
+        const socketIdsInRoomNotif = Array.from(
+          io.sockets.adapter.rooms.get(`${imei}_notif`) || []
+        );
+        console.log("socketIdsInRoom", socketIdsInRoom);
+        console.log("socketIdsInRoomNotif", socketIdsInRoomNotif);
+
+        // Verifier d'abord si le message pour se deconnecter lors de la fermeture de la connexion TCP
+        // =====================================
+        if (isDisconnected && socketIdsInRoom) {
+          // Émet l'état de la connexion connectée aux sockets Web respectives
+          console.log(
+            "❌❌ ❌❌ Envoyer le signe de deconnexion:",
+            "device_imei_connected_" + imei,
+            "dans les sockets :",
+            socketIdsInRoom
+          );
+          broadcast(imei, `device_imei_connected_${imei}`, {
+            isConnected: false,
+          });
+          return;
+        }
+
+        // Envoyer des notifications (étape 3) :
+        // =====================================
+        if (
+          values.hasOwnProperty("notifications") &&
+          values.notifications.length > 0
+        ) {
+          // Envoyer des données de notifications
+          if (socketIdsInRoomNotif) {
+            console.log(
+              "🔔🔔 🔔🔔 Envoyer les notifications:",
+              "device_imei_" + imei + "_notif",
+              values.imei,
+              "dans les sockets :",
+              socketIdsInRoomNotif
+            );
+            broadcast(
+              `${imei}_notif`,
+              `device_imei_${imei}_notif`,
+              JSON.stringify(values)
+            );
+          }
+        }
+        // Envoyer des données de localisation
+        if (socketIdsInRoom) {
+          console.log(
+            "🚗🚗 🚗🚗 Envoyer les données gps:",
+            `device_imei_${imei}`,
+            values.imei,
+            "dans les sockets :",
+            socketIdsInRoom
+          );
+          broadcast(imei, `device_imei_${imei}`, JSON.stringify(values));
+
+          // Émet l'état de la connexion connectée aux sockets Web respectives
+          broadcast(imei, `device_imei_connected_${imei}`, {
+            isConnected: true,
+          });
+        }
+      });
+    } catch (e) {
+      console.log("❗️❓", e);
+    }
+
+    function broadcast(imei, eventName, value) {
+      // Vérifier si la salle (room) existe déjà. NB: il verifie cette Romm s'il existe juste dans Worker en cours
+      if (io.sockets.adapter.rooms.has(imei)) {
+        io.to(imei).emit(eventName, value);
         console.log(
-          "new client device imei connected from" +
-            c.remoteAddress +
-            ":" +
-            c.remotePort
+          "🚀🚀🚀 Broadcast (On -Worker- " + process.pid + ") to the Room -",
+          imei,
+          "- and Event :",
+          eventName,
+          "with Values: ",
+          value
         );
       } else {
-        let avl = parser.getAvl();
-        // console.log("Avl: ", JSON.stringify(avl));
-        // Récupérer des données de l'appareil GPS
-        avl.records?.map(({ gps, timestamp, ioElements: elements }) => {
-          let ioElements = {};
-          for (let key in elements) {
-            if (elements.hasOwnProperty(key)) {
-              let data = elements[key].value;
-              ioElements[elements[key].label] = data;
-            }
-          }
+        console.log(
+          `🤷‍♂️🤷‍♂️🤷‍♂️ La salle ${imei} pour ${eventName} n'existe pas ! dans -Worker- ${process.pid}`
+        );
+      }
+    }
 
-          // Enregistrer les données dans la base de données MongoDB
-          console.log("gps", gps);
-          console.log("timestamp", timestamp);
+    // Middleware error handler
+    const errorHandler = require("./middleware/errorHanadler");
+    app.use(errorHandler);
 
-          if (gps.longitude && gps.latitude) {
-            // mettre à jour les données du client GPS avec les dernières données reçues pour etre détecté et envoyé par la suite dans les web sockets
-            observeChanges(imei, { gps, timestamp, ioElements, imei });
-          }
+    const PORT = process.env.PORT || 5001;
+    httpServer.listen(PORT, () => console.log(`App listening on port ${PORT}`));
 
-          // réinitialiser le délai lorsqu'il y a des données
-          c.setTimeout(CLIENT_TIMEOUT_DURATION);
-
-          console.log(
-            "imei detected",
-            imei,
-            "devices tcp connected : =============> ",
-            gpsClientsConnected,
-            timestamp
-          );
+    // ============================================================================================================================== //
+    // ===========================================================[ TEST ]=========================================================== //
+    // ============================================================================================================================== //
+    try {
+      const redisClient = await redisClientPromise;
+      const globalValue = await redisClient.get("global_value");
+      if (globalValue) {
+        const incrementedValue = parseInt(globalValue) + 1;
+        await redisClient.set("global_value", incrementedValue, {
+          // EX: DEFAULT_CACHE_EXPIRATION,
+          XX: true, // Utilisez XX au lieu de NX pour mettre à jour si la clé existe
         });
-
-        let writer = new binutils.BinaryWriter();
-        writer.WriteInt32(avl.number_of_data);
-
-        let response = writer.ByteBuffer;
-        c.write(response); // send ACK
+        console.log("globalValue", incrementedValue); // Afficher la valeur incrémentée
+      } else {
+        await redisClient.set("global_value", 1, {
+          // EX: DEFAULT_CACHE_EXPIRATION,
+          NX: true,
+        });
+        console.log("globalValue", 1); // Afficher la nouvelle valeur (1)
       }
     } catch (e) {
-      console.log("catch error :", e);
+      console.log("❗️❓", e);
     }
-  });
 
-  c.on("close", () => {
-    console.log("close => client device imei disconnected ... ! ");
-    closeTCPIPConnection();
-  });
-
-  c.on("end", () => {
-    console.log("end => client device imei disconnected ... ! ");
-    closeTCPIPConnection();
-  });
-
-  c.on("error", (err) => {
-    console.log("error => client device imei connection error : ", err);
-    closeTCPIPConnection();
-  });
-});
-
-trackingServer.listen(5002, "0.0.0.0", () => {
-  console.log("Server listening on 64.226.124.200:5002");
-});
-
-trackingServer.on("error", (err) => {
-  console.error(`Server error: ${err}`);
-});
-
-// Marque le serveur pour qu'il ne soit plus considéré comme bloquant
-// trackingServer.unref();
-
-// ============================================================================================================================== //
-// ==================================================[ Socket Web Application ]================================================== //
-// ============================================================================================================================== //
-function emitIMEIConnectionStatus(imei, eventName, value) {
-  // Vérifier si la salle (room) existe déjà
-  if (io.sockets.adapter.rooms.has(imei)) {
-    io.to(imei).emit(eventName, value);
-    console.log("emmit", eventName, "done ...");
-  } else {
-    console.log(`La salle ${imei} n'existe pas !`);
-  }
-}
-
-io.on("connection", (socket) => {
-  console.log(`Nouvelle connexion Web socket - id: ${socket.id}`);
-
-  socket.on("join", (imeis, callback) => {
-    console.log("join ", imeis);
-    if (typeof callback === "function") {
-      callback({ status: "ok" });
-      imeis.forEach((imei) => {
-        socket.join(imei);
-        const isConnected = latestDataFromGPSClients.has(imei);
-        emitIMEIConnectionStatus(imei, `device_imei_connected_${imei}`, {
-          isConnected,
-        });
-      });
-    }
-  });
-
-  socket.on("join_notifs", (imeis, callback) => {
-    console.log("join_notifs ", imeis);
-    if (typeof callback === "function") {
-      callback({ status: "ok" });
-      imeis.forEach((imei) => {
-        socket.join(imei);
-      });
-    }
-  });
-
-  socket.on("disconnecting", () => {
-    console.log("disconnecting...");
-    // Quitter toutes les salles (rooms) pour le socket Web auquel il appartient
-    // NB: La variable "socket.rooms" contient également le même ID de socket web concerné, mais cela ne pose aucun problème
-    socket.rooms.forEach((imei) => {
-      socket.leave(imei); // Quitter la salle (identifiée par IMEI) correspondante
-    });
-
-    console.log(`Socket ${socket.id} a été déconnecté`);
-  });
-});
-
-// Détecter les données qui ont changé depuis un IMEI, puis à les envoyer à tous les sockets Web pertinents (NB: incluant les sockets de type "notif")
-// NB: "values" ce sont des données qui sont envoyées par l'appareil GPS
-gpsClientsSubject.subscribe(async ({ imei, values }) => {
-  const socketIdsInRoom = Array.from(io.sockets.adapter.rooms.get(imei) || []);
-  const socketIdsInRoomNotif = Array.from(
-    io.sockets.adapter.rooms.get(`${imei}_notif`) || []
-  );
-  console.log("socketIdsInRoom", socketIdsInRoom);
-  // Envoyer des notifications (étape 3) :
-  // =====================================
-  if (
-    values.hasOwnProperty("notifications") &&
-    values.notifications.length > 0
-  ) {
-    socketIdsInRoomNotif &&
+    // Ceci juste pour voir ce qui se passe
+    /**/
+    setInterval(displaySocketInfo, 30000);
+    async function displaySocketInfo() {
+      console.log("\n");
       console.log(
-        "Envoyer les notifications:",
-        "device_imei_" + imei + "_notif",
-        values.imei,
-        "dans les sockets :",
-        socketIdsInRoomNotif
+        "********************************************************************************************************************************************"
       );
-    emitIMEIConnectionStatus(
-      `${imei}_notif`,
-      `device_imei_${imei}_notif`,
-      JSON.stringify(values)
-    );
+      // Obtenir le nombre de sockets TCP pour les appareils GPS connectés
+      const getConnections = () => {
+        return new Promise((resolve, reject) => {
+          trackingServer.getConnections((err, count) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(count);
+            }
+          });
+        });
+      };
+
+      try {
+        const count = await getConnections();
+        console.log(
+          `Nombre de sockets TCP pour les appareils GPS connectés dans -Worker- ${process.pid} : ${count}`
+        );
+      } catch (err) {
+        console.error("❗️❓", err);
+      }
+
+      // Obtenir le nombre de sockets Web connectés
+      const connectedSocketsCount = io.engine.clientsCount;
+      console.log(
+        `Nombre de sockets Web connectées dans -Worker- ${process.pid} : ${connectedSocketsCount}`
+      );
+
+      console.log("\n");
+
+      // Pour afficher les sockets ID connectés
+      console.log(
+        `*** Tous les ID de socket Web sont actuellement connectés dans -Worker- ${process.pid} : ***`
+      );
+      console.log([...io.sockets.sockets.keys()]);
+
+      console.log("\n");
+
+      console.log(
+        "*** Toutes les salles (rooms) et sockets Web auxquelles il appartient : ***"
+      );
+      const rooms = io.sockets.adapter.rooms;
+      // console.log("Show all rooms : ", rooms.keys());
+      for (const room of rooms.keys()) {
+        const sockets = await io.in(room).fetchSockets(); // NB Important: si "@socket.io/redis-adapter" est utilisé, la fonction "fetchSockets()" va récupèrer toutes les sockets qu'ils appartient dans cette "room" en cours même ces sockets se trouvent dans les autres Workers
+        if (room === sockets[0].id) continue;
+        console.log("Room : " + room);
+        sockets.forEach((socket) => {
+          console.log(" ==> Socket: ", socket.id); // Affiche l'ID de la socket
+        });
+      }
+
+      console.log("\n");
+
+      console.log(
+        "*** Toutes les Sockets GPS TCP actuellement connectées : ***"
+      );
+      // console.log("Adresses IP du GPS connecté : ", gpsClientsConnected);
+      await listGpsClientsConnected();
+
+      await listKeysForGPSClients(); // afficher touts les clients GPS IMEIs connectés
+
+      console.log(
+        "********************************************************************************************************************************************"
+      );
+      console.log("\n");
+    }
   }
-
-  // Envoyer les données de localisation
-  socketIdsInRoom &&
-    console.log(
-      "Envoyer les données gps:",
-      `device_imei_${imei}`,
-      values.imei,
-      "dans les sockets :",
-      socketIdsInRoom
-    );
-  emitIMEIConnectionStatus(imei, `device_imei_${imei}`, JSON.stringify(values));
-});
-
-const PORT = process.env.PORT || 5001;
-server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-
-// ============================================================================================================================== //
-// ===========================================================[ TEST ]=========================================================== //
-// ============================================================================================================================== //
-// Ceci juste pour tester les envois
-/*
-let latitude = 35.6791;
-let longitude = -5.3291;
-let speed = 10;
-setInterval(() => {
-  // Tâche à exécuter toutes les 3 secondes
-  latitude = latitude - 0.0002;
-  longitude = longitude - 0.0002;
-  speed = speed + 2;
-  observeChanges("350612076413275", {
-    imei: "350612076413275",
-    vehicle_id: "350612076413275",
-    gps: {
-      latitude: latitude,
-      longitude: longitude,
-      speed: speed,
-    },
-    ioElements: {
-      Ignition: Math.round(Math.random()),
-      Movement: Math.round(Math.random()),
-      "GSM Signal Strength": 5,
-      "Sleep Mode": 0,
-      "GNSS Status": 1,
-      PDOP: 16,
-      HDOP: 13,
-      "Ext Voltage": 0,
-      "Battery Voltage": 3214,
-      "Battery Current": 0,
-      "GSM Operator": 60401,
-      "Total Odometer": 3116,
-    },
-    timestamp: new Date(),
-    created_at: "date time",
-  });
-}, 10000);
-*/
-
-// Ceci juste pour voir ce qui se passe
-setInterval(displaySocketInfo, 7000);
-
-async function displaySocketInfo() {
-  console.log("\n");
-  console.log(
-    "********************************************************************************************************************************************"
-  );
-  // Obtenir le nombre de sockets TCP pour les appareils GPS connectés
-  const getConnections = () => {
-    return new Promise((resolve, reject) => {
-      trackingServer.getConnections((err, count) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(count);
-        }
-      });
-    });
-  };
-
-  try {
-    const count = await getConnections();
-    console.log(
-      `Nombre de sockets TCP pour les appareils GPS connectés : ${count}`
-    );
-  } catch (err) {
-    console.error(err);
-  }
-
-  // Obtenir le nombre de sockets Web connectés
-  const connectedSocketsCount = io.engine.clientsCount;
-  console.log("Nombre de sockets Web connectées :", connectedSocketsCount);
-
-  console.log("\n");
-
-  // Pour afficher les sockets client connectés
-  // const clients = Object.keys(io.engine.clients);
-  // console.log("*** toutes les Sockets client connectés : ***");
-  // clients.forEach((socketId) => {
-  //   console.log(` - client ID : ${socketId}`);
-  // });
-
-  // Pour afficher les sockets ID connectés
-  console.log(
-    "*** Tous les ID de socket Web sont actuellement connectés : ***"
-  );
-  console.log([...io.sockets.sockets.keys()]);
-
-  console.log("\n");
-
-  console.log(
-    "*** Toutes les salles (rooms) et sockets Web auxquelles il appartient : ***"
-  );
-  const rooms = io.sockets.adapter.rooms;
-  console.log("Show all rooms : ", rooms.keys());
-  for (const room of rooms.keys()) {
-    const sockets = await io.in(room).fetchSockets();
-    if (room === sockets[0].id) continue;
-    console.log("Room : " + room);
-    sockets.forEach((socket) => {
-      console.log(" ==> Socket: ", socket.id); // Affiche l'ID de la socket
-    });
-  }
-
-  console.log("\n");
-
-  console.log("*** Toutes les Sockets GPS TCP actuellement connectées : ***");
-  console.log("Adresses IP du GPS connecté : ", gpsClientsConnected);
-  console.log(
-    "clients imeis connectés : ",
-    Array.from(latestDataFromGPSClients.keys())
-  );
-  console.log(
-    "********************************************************************************************************************************************"
-  );
-  console.log("\n");
-}
+})();

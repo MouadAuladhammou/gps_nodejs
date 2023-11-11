@@ -13,9 +13,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@socket.io/cluster-adapter": "^0.2.2",
+    "@socket.io/redis-adapter": "^8.2.1",
+    "@socket.io/sticky": "^1.0.4",
+    "amqp-connection-manager": "^4.1.14",
     "amqplib": "^0.10.3",
     "avsc": "^5.7.6",
     "body-parser": "^1.20.1",
+    "connect-redis": "^7.1.0",
     "connect-timeout": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
@@ -23,9 +28,11 @@
     "express-async-handler": "^1.2.0",
     "express-delay": "^0.2.0",
     "express-graphql": "^0.12.0",
+    "express-session": "^1.17.3",
     "graphql": "^16.6.0",
     "jsonwebtoken": "^8.5.1",
     "kafka-node": "^5.0.0",
+    "loadtest": "^5.2.0",
     "mongodb-memory-server": "^8.9.3",
     "mongoose": "^6.6.5",
     "mysql2": "^2.3.3",
@@ -36,6 +43,8 @@
     "rxjs": "^7.8.1",
     "sequelize": "^6.24.0",
     "socket.io": "^4.5.3",
+    "socket.io-redis": "^6.1.1",
+    "sticky-session": "^1.1.2",
     "teltonika-parser": "0.0.15"
   }
 }
