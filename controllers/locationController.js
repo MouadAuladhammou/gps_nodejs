@@ -129,34 +129,6 @@ const getNotifications = asyncHandler(async (req, res) => {
     { $project: { _id: 1, imei: 1, notifications: 1, timestamp: 1 } }, // Projeter les notifications et les champs nécessaires
   ]);
 
-  // Mettre à jour les notifications avec le champ "viewedOnNavBar" "false" à "true"
-  const notificationIdsToUpdate = notifications.reduce(
-    (ids, { _id, notifications }) => {
-      if (!notifications.viewedOnNavBar) {
-        ids.push(_id);
-      }
-      return ids;
-    },
-    []
-  );
-
-  try {
-    if (notificationIdsToUpdate.length > 0) {
-      await Location.updateMany(
-        {
-          _id: {
-            $in: notificationIdsToUpdate.map((id) => Types.ObjectId(id)),
-          },
-          "notifications.viewedOnNavBar": false,
-        },
-        { $set: { "notifications.$.viewedOnNavBar": true } }
-      );
-    }
-  } catch (error) {
-    res.status(500);
-    throw new Error("Internal Server Error: " + error.message);
-  }
-
   res.status(200).send(notifications || []);
 });
 
@@ -185,9 +157,47 @@ const deleteNotification = asyncHandler(async (req, res) => {
   }
 });
 
+// Mettre à jour les statuts de notifications en changeant la variable "viewedOnNavBar" en "true"
+const updateNotificationsStatus = asyncHandler(async (req, res) => {
+  const Location = createLocationModel(req.userId);
+  const { listNotif: notificationIdsToUpdate } = req.body;
+
+  if (notificationIdsToUpdate.length < 1) {
+    res.status(404);
+    throw new Error("Notification not found");
+  } else {
+    try {
+      const promises = notificationIdsToUpdate.map(async ({ _id, type }) => {
+        const updated = await Location.updateOne(
+          {
+            _id: Types.ObjectId(_id),
+            "notifications.type": type,
+            "notifications.viewedOnNavBar": false,
+          },
+          { $set: { "notifications.$.viewedOnNavBar": true } }
+        );
+        return updated;
+      });
+
+      const modifiedCounts = await Promise.all(promises);
+
+      // Vérifiez si au moins une mise à jour a été effectuée
+      const success = modifiedCounts.some(
+        ({ modifiedCount }) => modifiedCount > 0
+      );
+
+      success ? res.status(200).end() : res.status(404).end();
+    } catch (err) {
+      res.status(500);
+      throw new Error("Internal Server Error: " + err.message);
+    }
+  }
+});
+
 module.exports = {
   getLocations,
   getLastRecord,
   getNotifications,
   deleteNotification,
+  updateNotificationsStatus,
 };

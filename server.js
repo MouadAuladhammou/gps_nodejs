@@ -39,6 +39,7 @@ const {
   checkNotificationKeyExistence,
   addClientGpsToRedis,
   removeClientGpsFromRedis,
+  deleteClientGpsRecord,
   isClientGpsInRedis,
   listGpsClientsConnected,
 
@@ -96,6 +97,9 @@ app.get("/heavy", (req, res) => {
 (async () => {
   var cluster = require("cluster");
   var os = require("os");
+
+  // Initialiser Map qui va contenir les adresses IP de GPS connectés
+  deleteClientGpsRecord();
 
   if (cluster.isMaster) {
     console.log(`Master ${process.pid} is running ⌛️`);

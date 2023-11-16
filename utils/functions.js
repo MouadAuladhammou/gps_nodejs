@@ -340,7 +340,7 @@ async function setLatestData(imei, values) {
   );
 }
 
-// Fonction pour supprimer les données de la Map() et de Redis
+// Fonction pour supprimer les données de Redis
 async function deleteLatestData(imei) {
   const redisClient = await redisClientPromise;
   redisClient.del(`latestDataFromGPSClients:${imei}`);
@@ -398,6 +398,19 @@ const addClientGpsToRedis = async (client) => {
   redisClient.sAdd(redisKey, clientKey, (err) => {
     if (err) {
       console.error("Erreur lors de l'ajout du client à Redis : ", err);
+    }
+  });
+};
+
+// Supprimer toutes les données associées à variabele redisKey (gpsClientsConnected)
+const deleteClientGpsRecord = async () => {
+  const redisClient = await redisClientPromise;
+  redisClient.del(redisKey, (err) => {
+    if (err) {
+      console.error(
+        "Erreur lors de la suppression des données de Redis : ",
+        err
+      );
     }
   });
 };
@@ -508,7 +521,7 @@ const consumeMessagesForMongoDB = async () => {
             const userId = vehicleAssociatedWithImei.group.user_id; // Utiliser "user_id" pour déterminer le nom de la collection
             // Créer le modèle pour la collection 'user_x__locations'
             const Location = createLocationModel(userId);
-            // const Location = createLocationModel(3); // ceci pour test
+            // const Location = createLocationModel(3); // ceci juste pour le test
             // Insérer les données dans MongoDB
             await Location.create(gpsData);
             console.log(
@@ -620,6 +633,7 @@ module.exports = {
   setNotificationDataWithExpiration,
   checkNotificationKeyExistence,
   addClientGpsToRedis,
+  deleteClientGpsRecord,
   removeClientGpsFromRedis,
   isClientGpsInRedis,
   listGpsClientsConnected,
