@@ -20,11 +20,14 @@ const getLocations = asyncHandler(async (req, res) => {
   } = req.query;
 
   const dataHistory = await getOrSetCache(
-    `dataHistory?imei:${imei}&page=${page}&limit=${limit}&start_date=${encodeURIComponent(
-      start_date
-    )}&end_date=${encodeURIComponent(
-      end_date
-    )}&range=${range}&hour=${hour}&notifications_only=${notifications_only}`,
+    `dataHistory?imei:${imei}
+    &page=${page}
+    &limit=${limit}
+    &start_date=${encodeURIComponent(start_date)}
+    &end_date=${encodeURIComponent(end_date)}
+    &range=${range}
+    &hour=${hour}
+    &notifications_only=${notifications_only}`,
     60,
     async () => {
       const Location = createLocationModel(req.userId);
@@ -96,6 +99,263 @@ const getLocations = asyncHandler(async (req, res) => {
     }
   );
   res.status(200).send({ ...dataHistory });
+});
+
+const getLocationsByImeis = asyncHandler(async (req, res) => {
+  let { imeis, page = 1, limit = 10, start_date, end_date } = req.query;
+
+  const dataHistory = await getOrSetCache(
+    `dataHistory?imeis:${imeis}
+      &page=${page}
+      &limit=${limit}
+      &start_date=${encodeURIComponent(start_date)}
+      &end_date=${encodeURIComponent(end_date)}`,
+    1800000, // 30 min
+    async () => {
+      try {
+        const Location = createLocationModel(req.userId);
+
+        if (isValidDateTime(start_date) && isValidDateTime(end_date)) {
+          let startDate, endDate;
+          startDate = parseDateTime(start_date);
+          endDate = parseDateTime(end_date);
+          endDate.setHours(23, 59, 59, 999);
+
+          const imeisArray =
+            imeis.split(",").map((imei) => parseInt(imei)) || [];
+
+          const matchConditions = {
+            timestamp: { $gt: startDate, $lte: endDate },
+            imei: { $in: imeisArray },
+          };
+
+          limit = parseInt(limit);
+          const skip = (page - 1) * limit;
+          const result = await Location.aggregate([
+            {
+              $match: matchConditions,
+            },
+            {
+              $sort: { timestamp: 1 }, // Tri par timestamp ascendant
+            },
+            {
+              $addFields: {
+                day: {
+                  $dateToString: { format: "%Y-%m-%d", date: "$timestamp" },
+                },
+                speedGreaterThanZero: { $gt: ["$gps.speed", 5] }, // Ajout d'un champ pour vérifier si speed > 5
+              },
+            },
+            {
+              $group: {
+                _id: {
+                  imei: "$imei",
+                  day: "$day",
+                },
+                totalMovement: { $sum: "$ioElements.Movement" },
+                firstOdometer: { $first: "$ioElements.Total Odometer" },
+                lastOdometer: { $last: "$ioElements.Total Odometer" },
+                count: { $sum: 1 },
+                totalNotifications: { $sum: { $size: "$notifications" } },
+                averageSpeed: {
+                  $avg: {
+                    $cond: {
+                      if: "$speedGreaterThanZero",
+                      then: "$gps.speed",
+                      else: null,
+                    },
+                  },
+                },
+              },
+            },
+            {
+              $sort: { "_id.day": 1 },
+            },
+            {
+              $group: {
+                _id: "$_id.imei",
+                days: {
+                  $push: {
+                    day: "$_id.day",
+                    totalMovement: "$totalMovement",
+                    totalOdometerDiff: {
+                      $subtract: ["$lastOdometer", "$firstOdometer"],
+                    },
+                    count: "$count",
+                    totalNotifications: "$totalNotifications",
+                    averageSpeed: "$averageSpeed",
+                  },
+                },
+              },
+            },
+            {
+              $sort: { _id: 1 },
+            },
+            {
+              $project: {
+                _id: 0,
+                imei: "$_id",
+                days: 1,
+              },
+            },
+            {
+              $skip: skip,
+            },
+            {
+              $limit: limit,
+            },
+          ]);
+
+          const count = result.length;
+          return { count, result };
+        } else {
+          return { count: 0, result: [] };
+        }
+      } catch (e) {
+        console.error("Error:", e);
+        throw e; // Rethrow the error to be caught by the outer error handler
+      }
+    }
+  );
+
+  res.status(200).send({ ...dataHistory });
+});
+
+const getRecentDaysConsumptionAndDistance = asyncHandler(async (req, res) => {
+  // const endDate = new Date(); // Date actuelle
+  // const startDate = new Date(endDate);
+  // startDate.setDate(endDate.getDate() - 7); // 7 jours avant la date actuelle
+  const startDate = new Date("2023-07-01");
+  const endDate = new Date("2023-12-01");
+  const data = await getOrSetCache(
+    `getRecentDaysConsumptionAndDistance`,
+    1,
+    async () => {
+      try {
+        const Location = createLocationModel(req.userId);
+        const result = await Location.aggregate([
+          {
+            $match: {
+              timestamp: { $gte: startDate, $lte: endDate },
+            },
+          },
+          {
+            $sort: { timestamp: 1 },
+          },
+          {
+            $group: {
+              _id: {
+                imei: "$imei",
+                date: {
+                  $dateToString: { format: "%Y-%m-%d", date: "$timestamp" },
+                },
+              },
+              firstOdometer: { $first: "$ioElements.Total Odometer" },
+              lastOdometer: { $last: "$ioElements.Total Odometer" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              imei: "$_id.imei",
+              date: "$_id.date",
+              odometerDiff: {
+                $subtract: ["$lastOdometer", "$firstOdometer"],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$date",
+              totalOdometerDiff: { $sum: "$odometerDiff" },
+            },
+          },
+          {
+            $sort: { _id: 1 }, // Tri par jour ascendant
+          },
+        ]);
+
+        if (result.length > 0) {
+          const count = result.length;
+          return { count, result };
+        } else {
+          return { count: 0, result: [] };
+        }
+      } catch (e) {
+        console.error("Error:", e);
+        throw e; // Rethrow the error to be caught by the outer error handler
+      }
+    }
+  );
+  res.status(200).send({ ...data });
+});
+
+const getLastYearConsumptionAndDistance = asyncHandler(async (req, res) => {
+  const currentDate = new Date();
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(currentDate.getMonth() - 12);
+  const data = await getOrSetCache(
+    `getLastYearConsumptionAndDistance`,
+    1,
+    async () => {
+      try {
+        const Location = createLocationModel(req.userId);
+        const result = await Location.aggregate([
+          {
+            $match: {
+              timestamp: { $gte: twelveMonthsAgo, $lte: currentDate },
+            },
+          },
+          {
+            $sort: { timestamp: 1 },
+          },
+          {
+            $group: {
+              _id: {
+                imei: "$imei",
+                year: { $year: "$timestamp" },
+                month: { $month: "$timestamp" },
+                day: { $dayOfMonth: "$timestamp" },
+              },
+              firstOdometer: { $first: "$ioElements.Total Odometer" },
+              lastOdometer: { $last: "$ioElements.Total Odometer" },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              odometerDiff: {
+                $subtract: ["$lastOdometer", "$firstOdometer"],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                year: "$_id.year",
+                month: "$_id.month",
+              },
+              totalOdometerDiff: { $sum: "$odometerDiff" },
+            },
+          },
+          {
+            $sort: { "_id.imei": 1, "_id.year": 1, "_id.month": 1 },
+          },
+        ]);
+
+        if (result.length > 0) {
+          const count = result.length;
+          return { count, result };
+        } else {
+          return { count: 0, result: [] };
+        }
+      } catch (e) {
+        console.error("Error:", e);
+        throw e; // Rethrow the error to be caught by the outer error handler
+      }
+    }
+  );
+  res.status(200).send({ ...data });
 });
 
 const getLastRecord = asyncHandler(async (req, res) => {
@@ -198,6 +458,9 @@ module.exports = {
   getLocations,
   getLastRecord,
   getNotifications,
+  getLocationsByImeis,
   deleteNotification,
   updateNotificationsStatus,
+  getRecentDaysConsumptionAndDistance,
+  getLastYearConsumptionAndDistance,
 };

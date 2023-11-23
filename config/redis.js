@@ -6,7 +6,7 @@ const Redis = require("redis");
 const createRedisClient = async () => {
   try {
     const redisClient = Redis.createClient({
-      url: "redis://10.114.0.2:6379", // On peut utiliser ip privé VPC ici si on a un load balancing entre plusieurs serveurs
+      url: "redis://localhost:6379", // On peut utiliser ip privé VPC ici si on a un load balancing entre plusieurs serveurs
       return_buffers: true,
     });
     redisClient.on("error", (err) => console.log("Redis Client Error", err));
