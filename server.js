@@ -28,6 +28,8 @@ const {
   getVehicleWithSettings,
   manageNotifications,
   getAllVehiclesGroupedByUser,
+  getImeisByUser,
+  getUserImeisByImei,
 
   getLatestData,
   setLatestData,
@@ -42,6 +44,7 @@ const {
   deleteClientGpsRecord,
   isClientGpsInRedis,
   listGpsClientsConnected,
+  getConnectedVehiclesCount,
 
   publishDataToQueues,
   consumeMessagesForMongoDB,
@@ -230,6 +233,33 @@ app.get("/heavy", (req, res) => {
       }
     };
 
+    const sendChartToOpenWebSockets = async (imei) => {
+      if (io.sockets.adapter.rooms.has(`${imei}_notif`)) {
+        // si cette Room est trouvée, c-v-d l'utilisateur concerné est connecté, car celui qui a créé cette Room, alors il faut envoyer les données dans les sockets respectives
+        const { imeis, userId } = await getUserImeisByImei(imei);
+
+        const socketIdsInRoom = Array.from(
+          io.sockets.adapter.rooms.get(userId) || []
+        );
+
+        if (socketIdsInRoom.length > 0 && imeis.length > 0) {
+          const { totalVehicles, connectedVehiclesCount } =
+            await getConnectedVehiclesCount(imeis);
+
+          console.log(
+            "📊📊 📊📊 Envoyer le nombre de véhicules connectés :",
+            "chart_" + userId,
+            "dans les sockets :",
+            socketIdsInRoom
+          );
+          broadcast(userId, `charts_${userId}`, {
+            totalVehicles,
+            connectedVehiclesCount,
+          });
+        }
+      }
+    };
+
     const CLIENT_TIMEOUT_DURATION =
       parseInt(process.env.CLIENT_TIMEOUT_DURATION_MS) || 60000;
 
@@ -268,6 +298,7 @@ app.get("/heavy", (req, res) => {
             "gpsDataChannel",
             JSON.stringify({ imei, values: null, isDisconnected: true })
           );
+          sendChartToOpenWebSockets(imei);
         }
 
         await deleteLatestData(imei);
@@ -312,6 +343,7 @@ app.get("/heavy", (req, res) => {
                 if (gps.longitude && gps.latitude) {
                   // mettre à jour les données du client GPS avec les dernières données reçues pour etre détecté et envoyé par la suite dans les web sockets
                   observeChanges(imei, { gps, timestamp, ioElements, imei });
+                  sendChartToOpenWebSockets(imei);
                 }
 
                 // réinitialiser le délai lorsqu'il y a des données
@@ -376,6 +408,31 @@ app.get("/heavy", (req, res) => {
               isConnected,
             });
           });
+        }
+      });
+
+      socket.on("join_charts", async (userId, callback) => {
+        console.log("join_charts ", userId);
+        if (typeof callback === "function") {
+          callback({ status: "ok" });
+          socket.join(userId);
+          try {
+            if (io.sockets.adapter.rooms.has(userId)) {
+              const imeis = await getImeisByUser(userId);
+              const { totalVehicles, connectedVehiclesCount } =
+                await getConnectedVehiclesCount(imeis);
+
+              broadcast(userId, `charts_${userId}`, {
+                totalVehicles,
+                connectedVehiclesCount,
+              });
+            }
+          } catch (error) {
+            console.error(
+              "Une erreur s'est produite lors de la vérification des IMEI :",
+              error
+            );
+          }
         }
       });
 

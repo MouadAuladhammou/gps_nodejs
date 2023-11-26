@@ -318,6 +318,64 @@ const manageNotifications = async (vehicleWithSettings, values) => {
   });
 };
 
+// Récupérer le nombre de véhicules connectés d'un utilisateur
+const getImeisByUser = async (userId) => {
+  const groupsWithVehicles = await Group.findAll({
+    attributes: ["id", "user_id", "vehicles.imei"], // Sélectionner les attributs à inclure dans le résultat
+    where: { user_id: userId },
+    order: [["name", "ASC"]], // Trier des résultats par nom dans l'ordre croissant
+    include: [
+      {
+        model: Vehicle,
+        as: "vehicles",
+        attributes: ["id", "imei"],
+      },
+    ],
+  });
+  const imeis = groupsWithVehicles
+    ? groupsWithVehicles.flatMap((item) =>
+        item.vehicles.map((vehicle) => vehicle.imei)
+      )
+    : [];
+  return imeis;
+};
+
+const getUserImeisByImei = async (imei) => {
+  try {
+    // Recherchez l'utilisateur associé à l'IMEI d'entrée
+    const user = await User.findOne({
+      attributes: ["id"],
+      include: [
+        {
+          model: Group,
+          as: "groupes",
+          attributes: [],
+          include: [
+            {
+              model: Vehicle,
+              as: "vehicles",
+              attributes: [],
+              where: {
+                imei: imei,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const userId = user.id || false;
+    if (userId) {
+      // Recherchez toutes les IMEIs associées à l'utilisateur
+      const imeis = await getImeisByUser(userId);
+      return { imeis, userId };
+    } else {
+      return {};
+    }
+  } catch (e) {
+    console.log("Error", e);
+  }
+};
+
 // ======================================================== [ Fonctions Rdis ] ======================================================== //
 // NB: Clé: latestDataFromGPSClients => contient les dernières données pour tous les appareils GPS en cours d'exécution (qui sont connectés en temps réel)
 
@@ -449,6 +507,19 @@ const listGpsClientsConnected = async (imei = null, timestamp = null) => {
     : console.log("Adresses IP du GPS connectés : ", gpsClientsConnected);
 };
 
+const getConnectedVehiclesCount = async (imeis) => {
+  let connectedVehiclesCount = 0;
+  let totalVehicles = 0;
+  // Utilisation de Promise.all pour paralléliser les appels à isIMEIConnected
+  await Promise.all(
+    imeis.map(async (imei) => {
+      if (await isIMEIConnected(imei)) connectedVehiclesCount++;
+    })
+  );
+  totalVehicles = imeis.length;
+  return { totalVehicles, connectedVehiclesCount };
+};
+
 // ======================================================== [ Fonctions RabbitMQ ] ======================================================== //
 // Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
 const publishDataToQueues = async (imei, data) => {
@@ -520,8 +591,8 @@ const consumeMessagesForMongoDB = async () => {
           if (vehicleAssociatedWithImei) {
             const userId = vehicleAssociatedWithImei.group.user_id; // Utiliser "user_id" pour déterminer le nom de la collection
             // Créer le modèle pour la collection 'user_x__locations'
-            const Location = createLocationModel(userId);
-            // const Location = createLocationModel(3); // ceci juste pour le test
+            // const Location = createLocationModel(userId);
+            const Location = createLocationModel(3); // ceci juste pour le test
             // Insérer les données dans MongoDB
             await Location.create(gpsData);
             console.log(
@@ -623,6 +694,8 @@ module.exports = {
   getVehicleWithSettings,
   manageNotifications,
   getAllVehiclesGroupedByUser,
+  getImeisByUser,
+  getUserImeisByImei,
 
   getLatestData,
   setLatestData,
@@ -637,6 +710,7 @@ module.exports = {
   removeClientGpsFromRedis,
   isClientGpsInRedis,
   listGpsClientsConnected,
+  getConnectedVehiclesCount,
 
   publishDataToQueues,
   consumeMessagesForMongoDB,

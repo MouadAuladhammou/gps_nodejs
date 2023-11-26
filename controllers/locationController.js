@@ -228,8 +228,8 @@ const getRecentDaysConsumptionAndDistance = asyncHandler(async (req, res) => {
   const startDate = new Date("2023-07-01");
   const endDate = new Date("2023-12-01");
   const data = await getOrSetCache(
-    `getRecentDaysConsumptionAndDistance`,
-    1,
+    `getRecentDaysConsumptionAndDistance:${req.userId}`,
+    1800000, // 30 min,
     async () => {
       try {
         const Location = createLocationModel(req.userId);
@@ -295,8 +295,8 @@ const getLastYearConsumptionAndDistance = asyncHandler(async (req, res) => {
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(currentDate.getMonth() - 12);
   const data = await getOrSetCache(
-    `getLastYearConsumptionAndDistance`,
-    1,
+    `getLastYearConsumptionAndDistance:${req.userId}`,
+    1800000, // 30 min,
     async () => {
       try {
         const Location = createLocationModel(req.userId);
