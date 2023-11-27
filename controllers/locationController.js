@@ -114,18 +114,21 @@ const getLocationsByImeis = asyncHandler(async (req, res) => {
     async () => {
       try {
         const Location = createLocationModel(req.userId);
-
-        if (isValidDateTime(start_date) && isValidDateTime(end_date)) {
+        if (isValidDateTime(start_date)) {
           let startDate, endDate;
           startDate = parseDateTime(start_date);
-          endDate = parseDateTime(end_date);
+          if (!isValidDateTime(end_date)) {
+            endDate = parseDateTime(start_date);
+          } else {
+            endDate = parseDateTime(end_date);
+          }
           endDate.setHours(23, 59, 59, 999);
 
           const imeisArray =
             imeis.split(",").map((imei) => parseInt(imei)) || [];
 
           const matchConditions = {
-            timestamp: { $gt: startDate, $lte: endDate },
+            timestamp: { $gte: startDate, $lt: endDate },
             imei: { $in: imeisArray },
           };
 
