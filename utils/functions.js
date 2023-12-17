@@ -249,13 +249,9 @@ const manageNotifications = async (vehicleWithSettings, values) => {
           values.notifications.push({
             show: true,
             type: 1,
-            message: `Le véhicule ${vehicleWithSettings.make} ${
-              vehicleWithSettings.make
-            } ${vehicleWithSettings.model} d'immatriculation: ${
-              vehicleWithSettings.registration_number
-            } est à l'intérieur du polygone ${
-              rule.polygon?.properties.desc || rule.polygon?.properties.id
-            }`,
+            message: `Le véhicule ${vehicleWithSettings.registration_number} 
+              est à l'intérieur du polygone 
+              ${rule.polygon?.properties.desc || rule.polygon?.properties.id}`,
           });
         }
         if (
@@ -265,13 +261,9 @@ const manageNotifications = async (vehicleWithSettings, values) => {
           values.notifications.push({
             show: true,
             type: 1,
-            message: `Le véhicule ${vehicleWithSettings.make} ${
-              vehicleWithSettings.make
-            } ${vehicleWithSettings.model} d'immatriculation: ${
-              vehicleWithSettings.registration_number
-            } est à l'extérieur du polygone ${
-              rule.polygon?.properties.desc || rule.polygon?.properties.id
-            }`,
+            message: `Le véhicule ${vehicleWithSettings.registration_number} 
+              est à l'extérieur du polygone
+              ${rule.polygon?.properties.desc || rule.polygon?.properties.id}`,
           });
         }
 

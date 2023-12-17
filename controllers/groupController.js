@@ -114,6 +114,28 @@ const updateGroup = asyncHandler(async (req, res) => {
   }
 });
 
+// Admin
+const createGroup = asyncHandler(async (req, res) => {
+  const group = await Group.create({
+    user_id: req.body.user_id,
+    name: req.body.name,
+    description: req.body.description,
+  });
+  res.status(201).send(group);
+});
+
+// Admin
+const deleteGroup = asyncHandler(async (req, res) => {
+  const rowDeleted = await Group.destroy({
+    where: { id: req.params.id },
+  });
+  if (rowDeleted) res.status(200).end();
+  else {
+    res.status(404);
+    throw new Error("Group not found");
+  }
+});
+
 const checkGroupNameUnique = asyncHandler(async (req, res) => {
   const groupId = parseInt(req.query.id);
   const groupName = req.query.q;
@@ -136,4 +158,6 @@ module.exports = {
   getGroup,
   updateGroup,
   checkGroupNameUnique,
+  createGroup,
+  deleteGroup,
 };

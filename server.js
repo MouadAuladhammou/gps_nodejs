@@ -77,6 +77,7 @@ const geo = require("./modules/geographic.js");
 const group = require("./modules/group.js");
 const rules = require("./modules/rule.js");
 const settings = require("./modules/settings.js");
+const vehicle = require("./modules/vehicle.js");
 
 // routes API :
 app.use("/api/locations", location);
@@ -86,6 +87,7 @@ app.use("/api/geo", geo);
 app.use("/api/groups", group);
 app.use("/api/rules", rules);
 app.use("/api/settings", settings);
+app.use("/api/vehicles", vehicle);
 
 // ======================================================== [ Test API ] ======================================================== //
 app.get("/heavy", (req, res) => {

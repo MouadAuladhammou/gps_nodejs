@@ -1,9 +1,8 @@
 const express = require("express");
 var router = express.Router();
 const { User, Group, Vehicle } = require("../models/index.js");
-const { verifyToken } = require("../middleware/check_token");
+const { verifyToken, verifyAdminToken } = require("../middleware/check_token");
 
-const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { Op } = require("sequelize");
 
@@ -63,19 +62,33 @@ router.get("/all", async (req, res) => {
   //   });
 });
 
-router.get("/show/:id", (req, res) => {
-  User.findOne({
+// Admin
+router.get("/show/:id", async (req, res) => {
+  const user = await User.findOne({
     where: { id: req.params.id },
-  })
-    .then(function (result) {
-      if (!result) return "not found";
-      else res.send(result.dataValues);
-    })
-    .catch((error) => {
-      console.error("Error : ", error);
-    });
+    include: [
+      {
+        model: Group,
+        as: "groupes",
+        include: [
+          {
+            model: Vehicle,
+            as: "vehicles",
+          },
+        ],
+      },
+    ],
+  });
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  } else {
+    res.send(user);
+  }
 });
 
+// Admin
 router.delete("/delete/:id", (req, res) => {
   User.destroy({
     where: { id: req.params.id },
@@ -109,7 +122,6 @@ router.get("/:id/vehicle", (req, res) => {
     });
 });
 
-// User
 const {
   loginUser,
   currentUser,
@@ -118,8 +130,17 @@ const {
   checkEmailUnique,
   checkCinUnique,
   checkPhoneNumberUnique,
+  createAndCheckUser,
+  updateAndCheckUser,
+  deleteUser,
 } = require("../controllers/userController.js");
 
+// Admin
+router.post("/", verifyAdminToken, createAndCheckUser);
+router.put("/", verifyAdminToken, updateAndCheckUser);
+router.delete("/:id", verifyAdminToken, deleteUser);
+
+// User
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/logged-in", verifyToken, currentUser);

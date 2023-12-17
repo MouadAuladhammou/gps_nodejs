@@ -367,13 +367,7 @@ const getLastRecord = asyncHandler(async (req, res) => {
   const location = await Location.findOne()
     .where({ imei })
     .sort({ created_at: -1 });
-
-  if (location) {
-    res.status(200).send(location);
-  } else {
-    res.status(404);
-    throw new Error("Location not found");
-  }
+  res.status(200).send(location);
 });
 
 const getNotifications = asyncHandler(async (req, res) => {

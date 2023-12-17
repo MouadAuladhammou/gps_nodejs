@@ -58,13 +58,14 @@ CREATE TABLE groupes (
     id int NOT NULL AUTO_INCREMENT,
     user_id int DEFAULT NULL,
     setting_id int DEFAULT NULL,
-    name varchar(255) NOT NULL UNIQUE,
+    name varchar(255) NOT NULL,
     description varchar(400) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (setting_id) REFERENCES settings(id) ON DELETE SET NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (id)
+    UNIQUE (user_id, name)
 );
 
 CREATE TABLE vehicles (
@@ -76,7 +77,7 @@ CREATE TABLE vehicles (
     year SMALLINT(4) NOT NULL,
     mileage int NOT NULL,
     type varchar(15) NOT NULL,
-    registration_number varchar(15) NOT NULL,
+    registration_number varchar(15) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (groupe_id) REFERENCES groupes(id) ON DELETE SET NULL,
