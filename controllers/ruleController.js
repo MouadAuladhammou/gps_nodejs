@@ -22,31 +22,47 @@ const getRule = asyncHandler(async (req, res) => {
 });
 
 const createRule = asyncHandler(async (req, res) => {
-  const rule = await Rule.create({
-    name: req.body.name,
-    description: req.body.description,
-    type: req.body.type,
-    value: req.body.value,
-    params: req.body.params,
-    user_id: req.userId,
-  });
-  res.status(201).send(rule);
-});
-
-const updateRule = asyncHandler(async (req, res) => {
-  const updatedrule = await Rule.update(
-    {
+  try {
+    const rule = await Rule.create({
       name: req.body.name,
       description: req.body.description,
       type: req.body.type,
       value: req.body.value,
-      params: req.body.params || null,
-    },
-    {
-      where: { id: req.params.id, user_id: req.userId },
-    }
-  );
-  res.status(200).send(updatedrule);
+      params: req.body.params,
+      user_id: req.userId,
+    });
+    res.status(201).send(rule);
+  } catch (error) {
+    res.status(500);
+    throw new Error(
+      "Une erreur s'est produite lors de la création de la règle: ",
+      error
+    );
+  }
+});
+
+const updateRule = asyncHandler(async (req, res) => {
+  try {
+    const updatedrule = await Rule.update(
+      {
+        name: req.body.name,
+        description: req.body.description,
+        type: req.body.type,
+        value: req.body.value,
+        params: req.body.params || null,
+      },
+      {
+        where: { id: req.params.id, user_id: req.userId },
+      }
+    );
+    res.status(200).send(updatedrule);
+  } catch (error) {
+    res.status(500);
+    throw new Error(
+      "Une erreur s'est produite lors de la modification de la règle: ",
+      error
+    );
+  }
 });
 
 const deleteRule = asyncHandler(async (req, res) => {

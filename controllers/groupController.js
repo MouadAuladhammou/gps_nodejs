@@ -116,12 +116,20 @@ const updateGroup = asyncHandler(async (req, res) => {
 
 // Admin
 const createGroup = asyncHandler(async (req, res) => {
-  const group = await Group.create({
-    user_id: req.body.user_id,
-    name: req.body.name,
-    description: req.body.description,
-  });
-  res.status(201).send(group);
+  try {
+    const group = await Group.create({
+      user_id: req.body.user_id,
+      name: req.body.name,
+      description: req.body.description,
+    });
+    res.status(201).send(group);
+  } catch (error) {
+    res.status(500);
+    throw new Error(
+      "Une erreur s'est produite lors de la création du groupe: ",
+      error
+    );
+  }
 });
 
 // Admin
