@@ -8,6 +8,8 @@ const {
   checkGroupNameUnique,
   createGroup,
   deleteGroup,
+  createGroupByUser,
+  deleteGroupByUser,
 } = require("../controllers/groupController.js");
 
 router.route("/").get(verifyToken, getGroupsWithVehicles); // récupérer tous les éléments pour "recap" (groupes avec ses vehicles )
@@ -16,5 +18,7 @@ router.route("/:id").put(verifyToken, updateGroup);
 router.route("/name/unique").get(verifyToken, checkGroupNameUnique);
 router.route("/").post(verifyAdminToken, createGroup);
 router.route("/:id").delete(verifyAdminToken, deleteGroup);
+router.route("/u").post(verifyToken, createGroupByUser);
+router.route("/u/:id").delete(verifyToken, deleteGroupByUser);
 
 module.exports = router;

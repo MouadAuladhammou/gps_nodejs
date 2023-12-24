@@ -1,17 +1,17 @@
 const express = require("express");
 var router = express.Router();
-const { verifyAdminToken } = require("../middleware/check_token");
+const { verifyToken, verifyAdminToken } = require("../middleware/check_token");
 
 const {
   deleteVehicle,
-  // checkVehicleData,
   createAndCheckVehicle,
   updateAndCheckVehicle,
+  changeGroupVehicle,
 } = require("../controllers/vehicleController.js");
 
-router.use(verifyAdminToken);
-router.route("/").post(createAndCheckVehicle);
-router.route("/:id").delete(deleteVehicle).put(updateAndCheckVehicle);
-// router.route("/check-vehicle").post(checkVehicleData);
+router.route("/").post(verifyAdminToken, createAndCheckVehicle);
+router.route("/:id").delete(verifyAdminToken, deleteVehicle);
+router.route("/:id").put(verifyAdminToken, updateAndCheckVehicle);
+router.route("/:id/group").put(verifyToken, changeGroupVehicle);
 
 module.exports = router;

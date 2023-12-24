@@ -1,6 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const { Op } = require("sequelize");
-const { Group, Vehicle, User } = require("../models/index.js");
+const { Group, Vehicle, User, Setting } = require("../models/index.js");
 
 // Admin (Methode 1)
 const checkVehicleData = asyncHandler(async (req, res) => {
@@ -176,9 +176,86 @@ const deleteVehicle = asyncHandler(async (req, res) => {
   }
 });
 
+// User
+const changeGroupVehicle = asyncHandler(async (req, res) => {
+  const { id: vehicleId } = req.params;
+  const { groupId } = req.body;
+  try {
+    // vérifier le groupe
+    const groupe = await Group.findOne({
+      attributes: ["user_id"],
+      where: {
+        id: groupId,
+        user_id: req.userId,
+      },
+    });
+
+    if (!groupe) {
+      // Gérer le cas où le groupe n'est pas trouvé
+      res.status(404);
+      throw new Error("Groupe non trouvé.");
+    }
+
+    // Essayer de mettre à jour le véhicule
+    await Vehicle.update(
+      {
+        groupe_id: groupId,
+      },
+      {
+        where: { id: vehicleId },
+      }
+    );
+
+    const groupsWithVehicles = await Group.findAll({
+      attributes: ["id", "user_id", "name", "description", "vehicles.imei"], // Sélectionnez les attributs à inclure dans le résultat
+      where: { user_id: req.userId },
+      order: [["name", "ASC"]], // Trier des résultats par nom dans l'ordre croissant
+      include: [
+        {
+          model: Vehicle,
+          as: "vehicles",
+          attributes: [
+            "id",
+            "groupe_id",
+            "imei",
+            "make",
+            "model",
+            "year",
+            "mileage",
+            "type",
+            "registration_number",
+          ],
+        },
+        {
+          model: Setting,
+          as: "setting",
+          attributes: ["id", "name", "description"],
+        },
+      ],
+      // limit: 10, // Limitez le nombre de résultats à 10
+    });
+
+    if (groupsWithVehicles) {
+      res.status(200).send({ groupsWithVehicles });
+    } else {
+      res.status(404);
+      throw new Error("Group not found");
+    }
+  } catch (error) {
+    // Une autre erreur s'est produite
+    console.error(
+      "Erreur lors de la modification du grouoe de véhicule",
+      error
+    );
+    res.status(500);
+    throw new Error("Internal Server Error");
+  }
+});
+
 module.exports = {
   deleteVehicle,
   checkVehicleData,
   createAndCheckVehicle,
   updateAndCheckVehicle,
+  changeGroupVehicle,
 };

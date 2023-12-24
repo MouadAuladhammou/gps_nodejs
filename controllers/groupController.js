@@ -132,10 +132,56 @@ const createGroup = asyncHandler(async (req, res) => {
   }
 });
 
+// User
+const createGroupByUser = asyncHandler(async (req, res) => {
+  const { name, description, setting: newSetting } = req.body;
+  try {
+    if (newSetting) {
+      const setting = await Setting.findOne({
+        where: {
+          id: newSetting.id,
+          user_id: req.userId,
+        },
+      });
+
+      if (!setting) {
+        res.status(404);
+        throw new Error("Le paramétre spécifiée n'existe pas");
+      }
+    }
+
+    const group = await Group.create({
+      user_id: req.userId,
+      name,
+      description,
+      setting_id: newSetting ? newSetting.id : null, // Assigne l'ID de la parametre si elle est spécifiée, sinon null
+    });
+    res.status(201).send(group);
+  } catch (error) {
+    res.status(500);
+    throw new Error(
+      "Une erreur s'est produite lors de la création du groupe: ",
+      error
+    );
+  }
+});
+
 // Admin
 const deleteGroup = asyncHandler(async (req, res) => {
   const rowDeleted = await Group.destroy({
     where: { id: req.params.id },
+  });
+  if (rowDeleted) res.status(200).end();
+  else {
+    res.status(404);
+    throw new Error("Group not found");
+  }
+});
+
+// User
+const deleteGroupByUser = asyncHandler(async (req, res) => {
+  const rowDeleted = await Group.destroy({
+    where: { id: req.params.id, user_id: req.userId },
   });
   if (rowDeleted) res.status(200).end();
   else {
@@ -168,4 +214,6 @@ module.exports = {
   checkGroupNameUnique,
   createGroup,
   deleteGroup,
+  deleteGroupByUser,
+  createGroupByUser,
 };
