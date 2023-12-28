@@ -156,7 +156,11 @@ const createGroupByUser = asyncHandler(async (req, res) => {
       description,
       setting_id: newSetting ? newSetting.id : null, // Assigne l'ID de la parametre si elle est spécifiée, sinon null
     });
-    res.status(201).send(group);
+
+    const groupWithSetting = await Group.findByPk(group.id, {
+      include: "setting",
+    });
+    res.status(201).send(groupWithSetting);
   } catch (error) {
     res.status(500);
     throw new Error(
@@ -183,7 +187,7 @@ const deleteGroupByUser = asyncHandler(async (req, res) => {
   const rowDeleted = await Group.destroy({
     where: { id: req.params.id, user_id: req.userId },
   });
-  if (rowDeleted) res.status(200).end();
+  if (rowDeleted) res.status(204).end();
   else {
     res.status(404);
     throw new Error("Group not found");

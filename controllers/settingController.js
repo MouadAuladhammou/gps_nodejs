@@ -29,7 +29,9 @@ const createSetting = asyncHandler(async (req, res) => {
   try {
     const { name, description } = req.body;
     transaction = await sequelize.transaction();
-    const rules = await Rule.findAll({ where: { id: ruleIds } });
+    const rules = await Rule.findAll({
+      where: { id: ruleIds, user_id: req.userId },
+    });
     if (rules.length !== ruleIds.length) {
       res.status(500);
       throw new Error("Une ou plusieurs règles n'existent pas");
@@ -46,8 +48,12 @@ const createSetting = asyncHandler(async (req, res) => {
 
     await setting.addRules(rules, { transaction });
     await transaction.commit();
+    const settingWithRules = await Setting.findByPk(setting.id, {
+      include: "rules",
+    });
+
     res.status(201).send({
-      setting,
+      setting: settingWithRules,
     });
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -87,11 +93,13 @@ const updateSetting = asyncHandler(async (req, res) => {
 
     const setting = await Setting.findByPk(req.params.id);
     await setting.removeRules(await setting.getRules(), { transaction });
-
     await setting.addRules(rules, { transaction });
     await transaction.commit();
+    const settingWithRules = await Setting.findByPk(setting.id, {
+      include: "rules",
+    });
     res.status(200).send({
-      setting,
+      setting: settingWithRules,
     });
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -105,7 +113,7 @@ const deleteSetting = asyncHandler(async (req, res) => {
     where: { id: req.params.id, user_id: req.userId },
   });
 
-  if (rowDeleted) res.status(200).end();
+  if (rowDeleted) res.status(204).end();
   // Envoie une réponse vide sans corps avec le statut 200
   else {
     res.status(404);

@@ -189,11 +189,27 @@ const changeGroupVehicle = asyncHandler(async (req, res) => {
         user_id: req.userId,
       },
     });
-
     if (!groupe) {
       // Gérer le cas où le groupe n'est pas trouvé
       res.status(404);
       throw new Error("Groupe non trouvé.");
+    }
+
+    // vérifier le vehicule
+    const vehicle = await Vehicle.findOne({
+      where: { id: vehicleId },
+      include: [
+        {
+          model: Group,
+          as: "group",
+          attributes: ["user_id"],
+        },
+      ],
+    });
+    if (!vehicle || vehicle?.group.user_id !== req.userId) {
+      // Gérer le cas où le groupe n'est pas trouvé
+      res.status(404);
+      throw new Error("Groupe ou Vehicule non trouvé.");
     }
 
     // Essayer de mettre à jour le véhicule

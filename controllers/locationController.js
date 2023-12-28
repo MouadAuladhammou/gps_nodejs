@@ -225,11 +225,9 @@ const getLocationsByImeis = asyncHandler(async (req, res) => {
 });
 
 const getRecentDaysConsumptionAndDistance = asyncHandler(async (req, res) => {
-  // const endDate = new Date(); // Date actuelle
-  // const startDate = new Date(endDate);
-  // startDate.setDate(endDate.getDate() - 7); // 7 jours avant la date actuelle
-  const startDate = new Date("2023-07-01");
-  const endDate = new Date("2023-12-01");
+  const endDate = new Date(); // Date actuelle
+  const startDate = new Date(endDate);
+  startDate.setDate(endDate.getDate() - 7); // 7 jours avant la date actuelle
   const data = await getOrSetCache(
     `getRecentDaysConsumptionAndDistance:${req.userId}`,
     1800000, // 30 min,

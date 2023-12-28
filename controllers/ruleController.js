@@ -43,7 +43,7 @@ const createRule = asyncHandler(async (req, res) => {
 
 const updateRule = asyncHandler(async (req, res) => {
   try {
-    const updatedrule = await Rule.update(
+    await Rule.update(
       {
         name: req.body.name,
         description: req.body.description,
@@ -55,7 +55,8 @@ const updateRule = asyncHandler(async (req, res) => {
         where: { id: req.params.id, user_id: req.userId },
       }
     );
-    res.status(200).send(updatedrule);
+    const rule = await Rule.findByPk(req.params.id);
+    res.status(201).send(rule);
   } catch (error) {
     res.status(500);
     throw new Error(
@@ -70,7 +71,7 @@ const deleteRule = asyncHandler(async (req, res) => {
     where: { id: req.params.id, user_id: req.userId },
   });
 
-  if (rowDeleted) res.status(200).end();
+  if (rowDeleted) res.status(204).end();
   // Envoie une réponse vide sans corps avec le statut 200
   else {
     res.status(404);
