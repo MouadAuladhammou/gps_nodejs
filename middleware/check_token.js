@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 
-// Angular
+// Angular with requests
 const verifyToken = asyncHandler((req, res, next) => {
   try {
     if (!req.headers.authorization) {
@@ -27,7 +27,31 @@ const verifyToken = asyncHandler((req, res, next) => {
   }
 });
 
-// React
+// Angular with sockets
+const verifySocketToken = (socket, next) => {
+  try {
+    // console.log("socket.handshake.query", socket.handshake.query);
+    if (socket.handshake.query && socket.handshake.query.token) {
+      jwt.verify(
+        socket.handshake.query.token,
+        process.env.JWT_SECRET,
+        function (err, decoded) {
+          if (err) return next(new Error("Authentication error"));
+          socket.decoded = decoded;
+          next();
+        }
+      );
+    } else {
+      console.log("Authentication error");
+      next(new Error("Authentication error"));
+    }
+  } catch (error) {
+    console.log("error", error);
+    next(new Error("Authentication error"));
+  }
+};
+
+// React with requests
 const verifyAdminToken = asyncHandler((req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -53,4 +77,8 @@ const verifyAdminToken = asyncHandler((req, res, next) => {
   }
 });
 
-module.exports = { verifyToken, verifyAdminToken };
+module.exports = {
+  verifyToken,
+  verifyAdminToken,
+  verifySocketToken,
+};

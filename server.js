@@ -56,6 +56,8 @@ const {
   getHourlyDateWithoutMinutes,
 } = require("./utils/helpers");
 
+const { verifySocketToken } = require("./middleware/check_token");
+
 // Socket GPS client (by TCP)
 const net = require("net");
 const Parser = require("teltonika-parser");
@@ -396,7 +398,9 @@ app.get("/heavy", (req, res) => {
     // ============================================================================================================================== //
     // ==================================================[ Socket Web Application ]================================================== //
     // ============================================================================================================================== //
-    io.on("connection", (socket) => {
+    io.use((socket, next) => {
+      verifySocketToken(socket, next);
+    }).on("connection", (socket) => {
       console.log(`💻💻 Nouvelle connexion Web socket - id: ${socket.id}`);
 
       socket.on("join", (imeis, callback) => {
