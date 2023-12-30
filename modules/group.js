@@ -5,7 +5,6 @@ const {
   getGroupsWithVehicles,
   getGroup,
   updateGroup,
-  checkGroupNameUnique,
   createGroup,
   deleteGroup,
   createGroupByUser,
@@ -16,7 +15,6 @@ const {
 router.route("/").get(verifyToken, getGroupsWithVehicles); // récupérer tous les éléments pour "recap" (groupes avec ses vehicles )
 router.route("/:id").get(verifyToken, getGroup);
 router.route("/:id").put(verifyToken, updateGroup);
-router.route("/name/unique").get(verifyToken, checkGroupNameUnique);
 router.route("/u").post(verifyToken, createGroupByUser);
 router.route("/u/:id").delete(verifyToken, deleteGroupByUser);
 

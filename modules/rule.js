@@ -8,12 +8,10 @@ const {
   createRule,
   updateRule,
   deleteRule,
-  checkRuleNameUnique,
 } = require("../controllers/ruleController.js");
 
 router.use(verifyToken);
 router.route("/").get(getRules).post(createRule);
 router.route("/:id").get(getRule).put(updateRule).delete(deleteRule);
-router.route("/name/unique").get(checkRuleNameUnique);
 
 module.exports = router;

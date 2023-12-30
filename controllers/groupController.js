@@ -1,5 +1,4 @@
 const asyncHandler = require("express-async-handler");
-const { Op } = require("sequelize");
 const { Setting, Group, Vehicle } = require("../models/index.js");
 
 const getGroupsWithVehicles = asyncHandler(async (req, res) => {
@@ -194,28 +193,10 @@ const deleteGroupByUser = asyncHandler(async (req, res) => {
   }
 });
 
-const checkGroupNameUnique = asyncHandler(async (req, res) => {
-  const groupId = parseInt(req.query.id);
-  const groupName = req.query.q;
-
-  const condition = {
-    name: groupName,
-    user_id: req.userId,
-  };
-
-  if (groupId) {
-    condition.id = { [Op.ne]: groupId };
-  }
-
-  const group = await Group.findOne({ where: condition });
-  group ? res.status(200).send(true) : res.status(200).send(false);
-});
-
 module.exports = {
   getGroupsWithVehicles,
   getGroup,
   updateGroup,
-  checkGroupNameUnique,
   createGroup,
   deleteGroup,
   deleteGroupByUser,

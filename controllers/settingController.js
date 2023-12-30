@@ -1,6 +1,5 @@
 const asyncHandler = require("express-async-handler");
 const { sequelize } = require("../config/mysql.js");
-const { Op } = require("sequelize");
 const { Setting, Rule } = require("../models/index.js");
 
 const getSettings = asyncHandler(async (req, res) => {
@@ -121,23 +120,6 @@ const deleteSetting = asyncHandler(async (req, res) => {
   }
 });
 
-const checkSettingNameUnique = asyncHandler(async (req, res) => {
-  const settingId = parseInt(req.query.id);
-  const settingName = req.query.q;
-
-  const condition = {
-    name: settingName,
-    user_id: req.userId,
-  };
-
-  if (settingId) {
-    condition.id = { [Op.ne]: settingId };
-  }
-
-  const setting = await Setting.findOne({ where: condition });
-  setting ? res.status(200).send(true) : res.status(200).send(false);
-});
-
 const updateStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -161,6 +143,5 @@ module.exports = {
   createSetting,
   updateSetting,
   deleteSetting,
-  checkSettingNameUnique,
   updateStatus,
 };

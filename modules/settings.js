@@ -8,14 +8,12 @@ const {
   createSetting,
   updateSetting,
   deleteSetting,
-  checkSettingNameUnique,
   updateStatus,
 } = require("../controllers/settingController.js");
 
 router.use(verifyToken);
 router.route("/").get(getSettings).post(createSetting);
 router.route("/:id").get(getSetting).put(updateSetting).delete(deleteSetting);
-router.route("/name/unique").get(checkSettingNameUnique);
 router.route("/:id/status").put(updateStatus);
 
 module.exports = router;
