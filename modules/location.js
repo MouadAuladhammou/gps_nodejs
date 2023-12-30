@@ -16,8 +16,8 @@ router.get("/", verifyToken, getLocations);
 router.get("/history", verifyToken, getLocationsByImeis);
 router.get("/chart/days", verifyToken, getRecentDaysConsumptionAndDistance);
 router.get("/chart/year", verifyToken, getLastYearConsumptionAndDistance);
-router.get("/last-record/:imei", verifyToken, getLastRecord);
-router.get("/notifications/:page", verifyToken, getNotifications);
+router.get("/:imei/last-record", verifyToken, getLastRecord);
+router.get("/:page/notifications", verifyToken, getNotifications);
 router.put("/notification", verifyToken, deleteNotification);
 router.put("/notifications", verifyToken, updateNotificationsStatus);
 

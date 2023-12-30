@@ -56,7 +56,7 @@ const updateRule = asyncHandler(async (req, res) => {
       }
     );
     const rule = await Rule.findByPk(req.params.id);
-    res.status(201).send(rule);
+    res.status(200).send(rule);
   } catch (error) {
     res.status(500);
     throw new Error(

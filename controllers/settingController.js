@@ -148,7 +148,7 @@ const updateStatus = asyncHandler(async (req, res) => {
   );
 
   if (updatedRows > 0) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Setting not found");

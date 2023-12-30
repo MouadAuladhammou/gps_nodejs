@@ -175,7 +175,7 @@ const deleteGroup = asyncHandler(async (req, res) => {
   const rowDeleted = await Group.destroy({
     where: { id: req.params.id },
   });
-  if (rowDeleted) res.status(200).end();
+  if (rowDeleted) res.status(204).end();
   else {
     res.status(404);
     throw new Error("Group not found");

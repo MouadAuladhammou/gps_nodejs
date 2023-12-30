@@ -216,7 +216,11 @@ const updateAndCheckUser = asyncHandler(async (req, res) => {
         where: { id },
       }
     );
-    res.status(200).send(true);
+    // res.status(200).send(true);
+    const user = await User.findByPk(id);
+    res.status(200).send({
+      user,
+    });
   } catch (error) {
     // Vérifier si l'erreur est liée à une violation d'unicité dans MySQL
     if (error.name === "SequelizeUniqueConstraintError") {
@@ -247,7 +251,7 @@ const deleteUser = asyncHandler(async (req, res) => {
   const rowDeleted = await User.destroy({
     where: { id: req.params.id },
   });
-  if (rowDeleted) res.status(200).end();
+  if (rowDeleted) res.status(204).end();
   else {
     res.status(404);
     throw new Error("User not found");

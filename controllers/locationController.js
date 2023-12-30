@@ -404,7 +404,7 @@ const deleteNotification = asyncHandler(async (req, res) => {
           },
         }
       );
-      updated ? res.status(200).end() : res.status(404).end();
+      updated ? res.status(204).end() : res.status(404).end();
     } catch (err) {
       res.status(500);
       throw new Error("Internal Server Error: " + err.message);
@@ -441,7 +441,7 @@ const updateNotificationsStatus = asyncHandler(async (req, res) => {
         ({ modifiedCount }) => modifiedCount > 0
       );
 
-      success ? res.status(200).end() : res.status(404).end();
+      success ? res.status(204).end() : res.status(404).end();
     } catch (err) {
       res.status(500);
       throw new Error("Internal Server Error: " + err.message);

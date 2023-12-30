@@ -16,6 +16,6 @@ router.use(verifyToken);
 router.route("/").get(getSettings).post(createSetting);
 router.route("/:id").get(getSetting).put(updateSetting).delete(deleteSetting);
 router.route("/name/unique").get(checkSettingNameUnique);
-router.route("/status/:id").put(updateStatus);
+router.route("/:id/status").put(updateStatus);
 
 module.exports = router;

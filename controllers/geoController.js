@@ -26,7 +26,7 @@ const createPoint = asyncHandler(async (req, res) => {
   );
 
   if (config) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Config not found");
@@ -45,7 +45,7 @@ const createPolygon = asyncHandler(async (req, res) => {
   );
 
   if (config) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Config not found");
@@ -64,7 +64,7 @@ const createLine = asyncHandler(async (req, res) => {
   );
 
   if (config) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Config not found");
@@ -103,7 +103,7 @@ const updateContentPopup = asyncHandler(async (req, res) => {
   }
 
   if (config) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Config not found");
@@ -125,7 +125,7 @@ const updatePoint = asyncHandler(async (req, res) => {
   );
 
   if (config) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Config not found");
@@ -147,7 +147,7 @@ const updatePolygon = asyncHandler(async (req, res) => {
   );
 
   if (config) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Config not found");
@@ -169,7 +169,7 @@ const updateLine = asyncHandler(async (req, res) => {
   );
 
   if (config) {
-    res.status(200).end();
+    res.status(204).end();
   } else {
     res.status(404);
     throw new Error("Config not found");
@@ -222,7 +222,7 @@ const deleteGeoConfiguration = asyncHandler(async (req, res) => {
   }
 
   if (result) {
-    res.send(result);
+    res.status(204).end();
   } else {
     res.status(404).send("GeoConfiguration not found");
   }
