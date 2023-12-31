@@ -27,7 +27,6 @@ schedule.scheduleJob(rule, async () => {
 const {
   getVehicleWithSettings,
   manageNotifications,
-  getAllVehiclesGroupedByUser,
   getImeisByUser,
   getUserImeisByImei,
 
@@ -36,8 +35,6 @@ const {
   deleteLatestData,
   isIMEIConnected,
   listKeysForGPSClients,
-  listKeysForLatestNotifications,
-  setNotificationDataWithExpiration,
   checkNotificationKeyExistence,
   addClientGpsToRedis,
   removeClientGpsFromRedis,
@@ -64,7 +61,7 @@ const Parser = require("teltonika-parser");
 const binutils = require("binutils64");
 
 // Connecter aux bases de données
-const redisClientPromise = require("./config/redis");
+const createRedisClient = require("./config/redis");
 const connectMongoDB = require("./config/mongodb.js");
 const { connectMySQL } = require("./config/mysql.js");
 connectMongoDB();
@@ -126,9 +123,11 @@ app.get("/heavy", (req, res) => {
       transports: ["websocket", "polling"],
     });
 
+    const redisClientPromise = await createRedisClient();
+
     // Methode 1:
     // const { createAdapter } = require("@socket.io/redis-adapter");
-    const pubClient = await redisClientPromise;
+    const pubClient = redisClientPromise;
     const subClient = pubClient.duplicate(); // créer une copie indépendante de "redisClient" appelée "subscriber". (NB: c'est obligatoire !)
     await subClient.connect();
     // io.adapter(createAdapter(pubClient, subClient));
@@ -226,7 +225,7 @@ app.get("/heavy", (req, res) => {
         }
 
         // Initialiser un canal "gpsDataChannel" pour détecter les changements en temps réel des données du GPS connecté via TCP afin qu'elles soient détectées et accessibles dans le traitement du socket Web.
-        const redisClient = await redisClientPromise;
+        const redisClient = redisClientPromise;
         redisClient.publish(
           "gpsDataChannel",
           JSON.stringify({ imei, values: valuesWithNotifs })
@@ -297,7 +296,7 @@ app.get("/heavy", (req, res) => {
           );
 
           // Émet un statut déconnecté pour les sockets Web respectifs dans toutes les Workers
-          const redisClient = await redisClientPromise;
+          const redisClient = redisClientPromise;
           redisClient.publish(
             "gpsDataChannel",
             JSON.stringify({ imei, values: null, isDisconnected: true })
@@ -467,7 +466,7 @@ app.get("/heavy", (req, res) => {
     // Détecter les données qui ont changé depuis un IMEI (GPS), puis à les envoyer à tous les sockets Web pertinents (NB: incluant les sockets de type "notif")
     // NB: "values" ce sont des données qui sont envoyées par l'appareil GPS
     try {
-      const redisClient = await redisClientPromise;
+      const redisClient = redisClientPromise;
       const subscriber = redisClient.duplicate(); // créer une copie indépendante de "redisClient" appelée "subscriber". (NB: c'est obligatoire !)
 
       await subscriber.connect();
@@ -579,7 +578,7 @@ app.get("/heavy", (req, res) => {
     // ===========================================================[ TEST ]=========================================================== //
     // ============================================================================================================================== //
     try {
-      const redisClient = await redisClientPromise;
+      const redisClient = await createRedisClient(3);
       const globalValue = await redisClient.get("global_value");
       if (globalValue) {
         const incrementedValue = parseInt(globalValue) + 1;

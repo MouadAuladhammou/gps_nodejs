@@ -1,4 +1,8 @@
-const redisClientPromise = require("../config/redis");
+const createRedisClient = require("../config/redis");
+const redisClientPromiseDb2 = createRedisClient(2);
+const redisClientPromiseDb3 = createRedisClient(3);
+const redisClientPromiseDb4 = createRedisClient(4);
+const redisClientPromiseDb5 = createRedisClient(5);
 const DEFAULT_CACHE_EXPIRATION = process.env.DEFAULT_CACHE_EXPIRATION || 3600; // secondes
 const { Vehicle, Setting, User, Group, Rule } = require("../models/index.js");
 const { GeoConfiguration } = require("../models/geographic.js");
@@ -35,7 +39,9 @@ const parseDateTime = (dateTimeString) => {
 
 // récupérer les données du cache si elles ne sont pas expirées, sinon récupérer les données de la base de données, puis les enregistrer dans le cache
 const getOrSetCache = async (key, cacheExpiration = null, callback) => {
-  const redisClient = await redisClientPromise;
+  key = key.replace(/\s+/g, "");
+  const redisClient = await redisClientPromiseDb2;
+
   return new Promise(async (resolve, reject) => {
     const dataHistory = await redisClient.get(key);
     if (dataHistory) {
@@ -65,7 +71,7 @@ const getOrSetCache = async (key, cacheExpiration = null, callback) => {
 
 // Récupérer les paramètres de notifications de IMEI depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
 const getVehicleWithSettings = async (imei) => {
-  return await getOrSetCache(`dataSettings?imei:${imei}`, 120, async () => {
+  return await getOrSetCache(`dataSettings?imei:${imei}`, 300, async () => {
     try {
       const vehicleInstance = await Vehicle.findOne({
         where: { imei: imei },
@@ -184,7 +190,7 @@ const getVehicleWithSettings = async (imei) => {
 
 // Récupérer tous les véhicules de tous les utilisateurs depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
 const getAllVehiclesGroupedByUser = async () => {
-  return await getOrSetCache(`vehiclesGroupedByUser`, null, async () => {
+  return await getOrSetCache(`vehiclesGroupedByUser`, 300, async () => {
     try {
       const vehicles = await Vehicle.findAll({
         include: [
@@ -373,7 +379,7 @@ const getUserImeisByImei = async (imei) => {
 
 // Fonction pour récupérer les données associées à un imei
 async function getLatestData(imei) {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb4;
   // Si l'imei n'est pas dans la Map(), essayons de le récupérer depuis Redis.
   const latestData = await redisClient.get(`latestDataFromGPSClients:${imei}`);
   const parsedValue = latestData ? JSON.parse(latestData) : null; // Utilisez un objet vide par défaut
@@ -382,7 +388,7 @@ async function getLatestData(imei) {
 
 // Fonction pour ajouter ou mettre à jour les données dans la Map() et dans Redis
 async function setLatestData(imei, values) {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb4;
   redisClient.setEx(
     `latestDataFromGPSClients:${imei}`,
     120,
@@ -392,27 +398,27 @@ async function setLatestData(imei, values) {
 
 // Fonction pour supprimer les données de Redis
 async function deleteLatestData(imei) {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb4;
   redisClient.del(`latestDataFromGPSClients:${imei}`);
 }
 
 // Fonction pour vérifier si un imei est connecté
 async function isIMEIConnected(imei) {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb4;
   const exists = await redisClient.exists(`latestDataFromGPSClients:${imei}`);
   return exists;
 }
 
 // Récupère toutes les clés qui correspondent à un modèle ("latestDataFromGPSClients")
 async function listKeysForGPSClients() {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb4;
   const keys = await redisClient.keys("latestDataFromGPSClients:*");
   console.log("Dernières clés pour les clients GPS connectés : ", keys);
 }
 
 // obtenir toutes les clés de notifications
 async function listKeysForLatestNotifications() {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb3;
   const keys = await redisClient.keys("notification:*");
   console.log(
     "=> => => => => => Clés de notifications existants dans Redis  <= <= <= <= <= <="
@@ -421,7 +427,7 @@ async function listKeysForLatestNotifications() {
 }
 
 async function setNotificationDataWithExpiration(notificationKey, data) {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb3;
   // Stocker la notification dans Redis avec une expiration d'une heure
   const { notification, userPhoneNumber } = data;
   await redisClient.setEx(
@@ -435,7 +441,7 @@ async function setNotificationDataWithExpiration(notificationKey, data) {
 }
 
 async function checkNotificationKeyExistence(notificationKey) {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb3;
   const exists = await redisClient.exists(`notification:${notificationKey}`);
   return !!exists;
 }
@@ -443,7 +449,7 @@ async function checkNotificationKeyExistence(notificationKey) {
 // Ajouter un client à la liste Redis lors de la connexion
 // NB: "sadd", "srem" et "sismember" il s'agit que la variable "redisKey" n'accepetent pas las valeurs doublons.
 const addClientGpsToRedis = async (client) => {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb5;
   const clientKey = client.remoteAddress + ":" + client.remotePort;
   redisClient.sAdd(redisKey, clientKey, (err) => {
     if (err) {
@@ -454,7 +460,7 @@ const addClientGpsToRedis = async (client) => {
 
 // Supprimer toutes les données associées à variabele redisKey (gpsClientsConnected)
 const deleteClientGpsRecord = async () => {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb5;
   redisClient.del(redisKey, (err) => {
     if (err) {
       console.error(
@@ -467,7 +473,7 @@ const deleteClientGpsRecord = async () => {
 
 // Supprimer un client de la liste Redis lors de la déconnexion
 const removeClientGpsFromRedis = async (client) => {
-  const redisClient = await redisClientPromise;
+  const redisClient = redisClientPromiseDb5;
   const clientKey = client.remoteAddress + ":" + client.remotePort;
   redisClient.sRem(redisKey, clientKey, (err) => {
     if (err) {
@@ -478,14 +484,14 @@ const removeClientGpsFromRedis = async (client) => {
 
 // Vérifier la présence d'un client dans la liste Redis
 const isClientGpsInRedis = async (client) => {
-  const redisClient = await redisClientPromise;
+  const redisClient = redisClientPromiseDb5;
   const clientKey = client.remoteAddress + ":" + client.remotePort;
   const isExist = await redisClient.sIsMember(redisKey, clientKey);
   return !!isExist;
 };
 
 const listGpsClientsConnected = async (imei = null, timestamp = null) => {
-  const redisClient = await redisClientPromise;
+  const redisClient = await redisClientPromiseDb5;
   const gpsClientsConnected =
     (await redisClient.sMembers(redisKey)) || "aucun client GPS connécté !";
   imei && timestamp

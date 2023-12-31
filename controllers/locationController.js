@@ -20,7 +20,7 @@ const getLocations = asyncHandler(async (req, res) => {
   } = req.query;
 
   const dataHistory = await getOrSetCache(
-    `dataHistory?imei:${imei}
+    `${req.userId}:dataHistory?imei:${imei}
     &page=${page}
     &limit=${limit}
     &start_date=${encodeURIComponent(start_date)}
@@ -28,7 +28,7 @@ const getLocations = asyncHandler(async (req, res) => {
     &range=${range}
     &hour=${hour}
     &notifications_only=${notifications_only}`,
-    60,
+    600, // 10 min
     async () => {
       const Location = createLocationModel(req.userId);
       let startDate, endDate;
@@ -105,12 +105,12 @@ const getLocationsByImeis = asyncHandler(async (req, res) => {
   let { imeis, page = 1, limit = 10, start_date, end_date } = req.query;
 
   const dataHistory = await getOrSetCache(
-    `dataHistory?imeis:${imeis}
+    `${req.userId}:dataHistory?imeis:${imeis}
       &page=${page}
       &limit=${limit}
       &start_date=${encodeURIComponent(start_date)}
       &end_date=${encodeURIComponent(end_date)}`,
-    1800000, // 30 min
+    86400, // 24h
     async () => {
       try {
         const Location = createLocationModel(req.userId);
@@ -229,8 +229,8 @@ const getRecentDaysConsumptionAndDistance = asyncHandler(async (req, res) => {
   const startDate = new Date(endDate);
   startDate.setDate(endDate.getDate() - 7); // 7 jours avant la date actuelle
   const data = await getOrSetCache(
-    `getRecentDaysConsumptionAndDistance:${req.userId}`,
-    1800000, // 30 min,
+    `${req.userId}:getRecentDaysConsumptionAndDistance:${req.userId}`,
+    86400, // 24h,
     async () => {
       try {
         const Location = createLocationModel(req.userId);
@@ -296,8 +296,8 @@ const getLastYearConsumptionAndDistance = asyncHandler(async (req, res) => {
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(currentDate.getMonth() - 12);
   const data = await getOrSetCache(
-    `getLastYearConsumptionAndDistance:${req.userId}`,
-    1800000, // 30 min,
+    `${req.userId}:getLastYearConsumptionAndDistance:${req.userId}`,
+    86400, // 24h,
     async () => {
       try {
         const Location = createLocationModel(req.userId);
