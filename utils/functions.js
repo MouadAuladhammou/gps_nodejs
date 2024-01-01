@@ -3,6 +3,8 @@ const redisClientPromiseDb2 = createRedisClient(2);
 const redisClientPromiseDb3 = createRedisClient(3);
 const redisClientPromiseDb4 = createRedisClient(4);
 const redisClientPromiseDb5 = createRedisClient(5);
+const redisClientPromiseDb6 = createRedisClient(6);
+
 const DEFAULT_CACHE_EXPIRATION = process.env.DEFAULT_CACHE_EXPIRATION || 3600; // secondes
 const { Vehicle, Setting, User, Group, Rule } = require("../models/index.js");
 const { GeoConfiguration } = require("../models/geographic.js");
@@ -21,6 +23,7 @@ const smsQueueName = "smsQueue";
 
 const oneHourInMillis = 60 * 60 * 1000; // Une heure en millisecondes
 const redisKey = "gpsClientsConnected";
+const refreshTokenKey = "clientRefreshTokens";
 
 // ======================================================== [ Fonctions App ] ======================================================== //
 // Fonction pour vérifier la validité d'une date et heure
@@ -473,7 +476,7 @@ const deleteClientGpsRecord = async () => {
 
 // Supprimer un client de la liste Redis lors de la déconnexion
 const removeClientGpsFromRedis = async (client) => {
-  const redisClient = redisClientPromiseDb5;
+  const redisClient = await redisClientPromiseDb5;
   const clientKey = client.remoteAddress + ":" + client.remotePort;
   redisClient.sRem(redisKey, clientKey, (err) => {
     if (err) {
@@ -484,7 +487,7 @@ const removeClientGpsFromRedis = async (client) => {
 
 // Vérifier la présence d'un client dans la liste Redis
 const isClientGpsInRedis = async (client) => {
-  const redisClient = redisClientPromiseDb5;
+  const redisClient = await redisClientPromiseDb5;
   const clientKey = client.remoteAddress + ":" + client.remotePort;
   const isExist = await redisClient.sIsMember(redisKey, clientKey);
   return !!isExist;
@@ -516,6 +519,34 @@ const getConnectedVehiclesCount = async (imeis) => {
   );
   totalVehicles = imeis.length;
   return { totalVehicles, connectedVehiclesCount };
+};
+
+// Ajouter un Refresh Token à la liste Redis lors de la connexion
+// NB: "sadd", "srem" et "sismember" il s'agit que la variable "refreshTokenKey" n'accepetent pas las valeurs doublons.
+const addTokenToRedis = async (token) => {
+  const redisClient = await redisClientPromiseDb6;
+  redisClient.sAdd(refreshTokenKey, token, (err) => {
+    if (err) {
+      console.error("Erreur lors de l'ajout du Token à Redis : ", err);
+    }
+  });
+};
+
+// Supprimer un Refresh Token de la liste Redis lors de la déconnexion
+const removeTokenFromRedis = async (token) => {
+  const redisClient = await redisClientPromiseDb6;
+  redisClient.sRem(refreshTokenKey, token, (err) => {
+    if (err) {
+      console.error("Erreur lors de la suppression du Token de Redis : ", err);
+    }
+  });
+};
+
+// Vérifier la présence d'un Refresh Token dans la liste Redis
+const isTokenInRedis = async (token) => {
+  const redisClient = await redisClientPromiseDb6;
+  const isExist = await redisClient.sIsMember(refreshTokenKey, token);
+  return !!isExist;
 };
 
 // ======================================================== [ Fonctions RabbitMQ ] ======================================================== //
@@ -709,6 +740,9 @@ module.exports = {
   isClientGpsInRedis,
   listGpsClientsConnected,
   getConnectedVehiclesCount,
+  addTokenToRedis,
+  removeTokenFromRedis,
+  isTokenInRedis,
 
   publishDataToQueues,
   consumeMessagesForMongoDB,

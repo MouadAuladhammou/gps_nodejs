@@ -6,6 +6,11 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { Op } = require("sequelize");
 const { verifyAdminToken } = require("../middleware/check_token");
+const {
+  addTokenToRedis,
+  removeTokenFromRedis,
+  isTokenInRedis,
+} = require("../utils/functions");
 
 // Super Admin (cette partie est pas encore traitée)
 /////////////////////////////////////////////////
@@ -178,8 +183,6 @@ const roles_admin = [
   },
 ];
 
-let refreshTokens = [];
-
 const generateAccessToken = (admin) => {
   return jwt.sign(
     {
@@ -222,7 +225,7 @@ router.post("/login", (req, res) => {
         //Generate an access token
         const accessToken = generateAccessToken(admin);
         const refreshToken = generateRefreshToken(admin);
-        refreshTokens.push(refreshToken);
+        addTokenToRedis(refreshToken);
         res.status(200).send({
           id: admin.id,
           first_name: admin.first_name,
@@ -238,38 +241,50 @@ router.post("/login", (req, res) => {
     });
 });
 
-router.post("/refresh", (req, res) => {
+router.post("/refresh", async (req, res) => {
   // take the refresh token from the user
   const refreshToken = req.body.token;
 
   //send error if there is no token or it's invalid
   if (!refreshToken) return res.status(401).json("You are not authenticated!");
-  if (!refreshTokens.includes(refreshToken)) {
-    return res.status(403).send({
-      err: "Refresh token is not valid!",
-    });
+  const isExist = await isTokenInRedis(refreshToken);
+  if (!isExist) {
+    res.status(403).end();
+    return;
   }
   jwt.verify(refreshToken, "myRefreshSecretKey", (err, admin) => {
-    err && console.log(err);
-    refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
-    const newAccessToken = generateAccessToken(admin);
-    const newRefreshToken = generateRefreshToken(admin);
-    refreshTokens.push(newRefreshToken);
-    res.status(200).send({
-      // id: admin.id,
-      // first_name: admin.first_name,
-      // last_name: admin.last_name,
-      // roles: admin.roles,
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    });
+    if (err) {
+      const errorMessage =
+        err instanceof jwt.TokenExpiredError
+          ? `Token Error: ${err.message}`
+          : `Token Error: ${err}`;
+
+      console.log(errorMessage);
+      removeTokenFromRedis(refreshToken);
+      res.status(403).send({
+        err: "Refresh token is not valid!",
+      });
+    } else {
+      removeTokenFromRedis(refreshToken);
+      const newAccessToken = generateAccessToken(admin);
+      const newRefreshToken = generateRefreshToken(admin);
+      addTokenToRedis(newRefreshToken);
+      res.status(200).send({
+        // id: admin.id,
+        // first_name: admin.first_name,
+        // last_name: admin.last_name,
+        // roles: admin.roles,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      });
+    }
   });
 });
 
-router.post("/logout", verifyAdminToken, (req, res) => {
+router.post("/logout", (req, res) => {
   const refreshToken = req.body.token;
-  refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
-  res.status(200).json("You logged out successfully.");
+  removeTokenFromRedis(refreshToken);
+  res.status(204).end();
 });
 
 router.delete("/user/:userId", verifyAdminToken, (req, res) => {

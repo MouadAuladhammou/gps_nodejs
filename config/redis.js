@@ -19,6 +19,7 @@ const createRedisClient = async (database = 0) => {
     // Local Values => 3
     // latest GPS data values (Key: latestDataFromGPSClients) => 4
     // Clients GPS Connected => 5
+    // refresh Tokens => 6
 
     console.log(`Redis connection was successful with database ${database}`);
     return redisClient;
