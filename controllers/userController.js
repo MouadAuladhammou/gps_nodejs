@@ -1,5 +1,5 @@
 const asyncHandler = require("express-async-handler");
-const { User, Group, Vehicle } = require("../models/index.js");
+const { User, Group, Vehicle, Setting } = require("../models/index.js");
 const { Op } = require("sequelize");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
@@ -16,6 +16,11 @@ const loginUser = asyncHandler(async (req, res) => {
             {
               model: Vehicle,
               as: "vehicles",
+            },
+            {
+              model: Setting,
+              as: "setting",
+              attributes: ["id", "name", "description"],
             },
           ],
         },
@@ -53,6 +58,11 @@ const currentUser = asyncHandler(async (req, res) => {
               {
                 model: Vehicle,
                 as: "vehicles",
+              },
+              {
+                model: Setting,
+                as: "setting",
+                attributes: ["id", "name", "description"],
               },
             ],
           },

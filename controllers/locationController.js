@@ -368,6 +368,48 @@ const getLastRecord = asyncHandler(async (req, res) => {
   res.status(200).send(location);
 });
 
+const getLastRecords = asyncHandler(async (req, res) => {
+  try {
+    const query = req.query;
+    if (
+      query.imeis !== undefined &&
+      query.imeis !== null &&
+      query.imeis.trim() !== ""
+    ) {
+      const Location = createLocationModel(req.userId);
+      const imeis = query.imeis.split(",");
+      const latestLocations = await Location.aggregate([
+        { $match: { imei: { $in: imeis.map((imei) => parseInt(imei)) } } },
+        { $sort: { timestamp: -1 } },
+        {
+          $group: {
+            _id: "$imei",
+            latestLocation: { $first: "$$ROOT" },
+          },
+        },
+        {
+          $project: {
+            _id: 0, // Exclure le champ _id du résultat final
+            imei: "$latestLocation.imei",
+            gps: "$latestLocation.gps",
+            ioElements: "$latestLocation.ioElements",
+            timestamp: "$latestLocation.timestamp",
+            hour: "$latestLocation.hour",
+            minute: "$latestLocation.minute",
+            notifications: "$latestLocation.notifications",
+            created_at: "$latestLocation.created_at",
+          },
+        },
+      ]);
+      res.status(200).send(latestLocations);
+    } else {
+      res.status(400).send('Paramètre "imeis" manquant ou vide.');
+    }
+  } catch (e) {
+    console.log(e);
+  }
+});
+
 const getNotifications = asyncHandler(async (req, res) => {
   const perPage = 4; // Nombre d'éléments à charger à chaque fois
   const currentPage = req.params.page || 1;
@@ -452,6 +494,7 @@ const updateNotificationsStatus = asyncHandler(async (req, res) => {
 module.exports = {
   getLocations,
   getLastRecord,
+  getLastRecords,
   getNotifications,
   getLocationsByImeis,
   deleteNotification,

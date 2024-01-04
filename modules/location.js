@@ -5,6 +5,7 @@ const {
   getLocations,
   getLocationsByImeis,
   getLastRecord,
+  getLastRecords,
   getNotifications,
   deleteNotification,
   updateNotificationsStatus,
@@ -17,6 +18,7 @@ router.get("/history", verifyToken, getLocationsByImeis);
 router.get("/chart/days", verifyToken, getRecentDaysConsumptionAndDistance);
 router.get("/chart/year", verifyToken, getLastYearConsumptionAndDistance);
 router.get("/:imei/last-record", verifyToken, getLastRecord);
+router.get("/last-recordS", verifyToken, getLastRecords);
 router.get("/:page/notifications", verifyToken, getNotifications);
 router.put("/notification", verifyToken, deleteNotification);
 router.put("/notifications", verifyToken, updateNotificationsStatus);
