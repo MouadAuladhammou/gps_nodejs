@@ -416,7 +416,10 @@ async function isIMEIConnected(imei) {
 async function listKeysForGPSClients() {
   const redisClient = await redisClientPromiseDb4;
   const keys = await redisClient.keys("latestDataFromGPSClients:*");
-  console.log("Dernières clés pour les clients GPS connectés : ", keys);
+  console.log(
+    "Afficher les clés des dernières données reçues pour tous les clients GPS IMEI connectés: ",
+    keys
+  );
 }
 
 // obtenir toutes les clés de notifications

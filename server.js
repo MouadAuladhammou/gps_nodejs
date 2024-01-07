@@ -275,6 +275,7 @@ app.get("/heavy", (req, res) => {
       c.setNoDelay(true);
       // définir 60 secondes de TIMEOUT pour chaque appareil GPS connecté, si cela se produit, il sera automatiquement déconnecté du serveur
       c.setTimeout(CLIENT_TIMEOUT_DURATION, () => {
+        console.log("Socket Timeout ...");
         closeTCPIPConnection();
       });
 
@@ -666,7 +667,7 @@ app.get("/heavy", (req, res) => {
       // console.log("Adresses IP du GPS connecté : ", gpsClientsConnected);
       await listGpsClientsConnected();
 
-      await listKeysForGPSClients(); // afficher touts les clients GPS IMEIs connectés
+      await listKeysForGPSClients(); // afficher les dernières données reçues pour tous les clients GPS IMEI connectés
 
       console.log(
         "********************************************************************************************************************************************"
