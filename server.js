@@ -16,14 +16,6 @@ const expressDelay = require("express-delay");
 const timeout = require("connect-timeout");
 app.use(timeout("60s"));
 
-const schedule = require("node-schedule");
-const rule = new schedule.RecurrenceRule();
-rule.hour = 21;
-rule.minute = 47;
-schedule.scheduleJob(rule, async () => {
-  // Traitement quotidien à 21h47 ...
-});
-
 const {
   getVehicleWithSettings,
   manageNotifications,

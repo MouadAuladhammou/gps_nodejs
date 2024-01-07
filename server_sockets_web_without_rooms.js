@@ -4,7 +4,6 @@ const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 // const expressDelay = require("express-delay");
 // app.use(expressDelay(5000)); // toutes les réponses seront retardées de 5 secondes grâce au middleware "express-delay".
-const schedule = require("node-schedule");
 
 const {
   getVehicleWithSettings,
@@ -83,13 +82,6 @@ app.use(errorHandler);
 (async () => {
   // traitement en mode async ...
 })();
-
-const rule = new schedule.RecurrenceRule();
-rule.hour = 21;
-rule.minute = 47;
-schedule.scheduleJob(rule, async () => {
-  // Traitement quotidien à 21h47 ...
-});
 
 // ============================================================================================================================== //
 // =========================================================[ RabbitMQ ]========================================================= //

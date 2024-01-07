@@ -535,6 +535,19 @@ const addTokenToRedis = async (token) => {
   });
 };
 
+// Supprimer toutes Refresh Tokens associées à variabele redisKey (clientRefreshTokens)
+const deleteAllTokensFromRedis = async () => {
+  const redisClient = await redisClientPromiseDb6;
+  redisClient.del(refreshTokenKey, (err) => {
+    if (err) {
+      console.error(
+        "Erreur lors de la suppression des données de Redis : ",
+        err
+      );
+    }
+  });
+};
+
 // Supprimer un Refresh Token de la liste Redis lors de la déconnexion
 const removeTokenFromRedis = async (token) => {
   const redisClient = await redisClientPromiseDb6;
@@ -745,6 +758,7 @@ module.exports = {
   getConnectedVehiclesCount,
   addTokenToRedis,
   removeTokenFromRedis,
+  deleteAllTokensFromRedis,
   isTokenInRedis,
 
   publishDataToQueues,
