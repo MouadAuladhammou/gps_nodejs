@@ -44,6 +44,7 @@
     "socket.io": "^4.5.3",
     "socket.io-redis": "^6.1.1",
     "sticky-session": "^1.1.2",
-    "teltonika-parser": "0.0.15"
+    "teltonika-parser": "0.0.15",
+    "xss": "^1.0.14"
   }
 }

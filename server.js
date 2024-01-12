@@ -4,6 +4,10 @@ const app = express();
 const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 
+// Clean request Data
+const { sanitizeData } = require("./middleware/sanitize_data.js");
+app.use(sanitizeData);
+
 // Allow cross-origin
 const cors = require("cors");
 app.use(cors({ origin: "*" }));

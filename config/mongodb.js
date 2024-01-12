@@ -1,10 +1,13 @@
 const mongoose = require("mongoose");
 
+// Encodez le mot de passe avec encodeURIComponent
+const encodedPassword = encodeURIComponent("d+l5H)@tv6t6p@8FvKDJFL-ts@{dq24J");
+
 // Fonction pour se connecter à Mongodb
 async function connectMongoDB() {
   try {
     await mongoose.connect(
-      "mongodb://admin:adminpassword@10.114.0.2:27017/db_gps" // On peut utiliser ip privé VPC ici si on a un load balancing entre plusieurs serveurs
+      `mongodb://admin:${encodedPassword}@10.114.0.2:27017/db_gps` // On peut utiliser ip privé VPC ici si on a un load balancing entre plusieurs serveurs
     );
     console.log("MongoDB connection succeeded.");
   } catch (error) {

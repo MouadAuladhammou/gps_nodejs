@@ -125,7 +125,7 @@ const getLocationsByImeis = asyncHandler(async (req, res) => {
           endDate.setHours(23, 59, 59, 999);
 
           const imeisArray =
-            imeis.split(",").map((imei) => parseInt(imei)) || [];
+            imeis?.split(",").map((imei) => parseInt(imei)) || [];
 
           const matchConditions = {
             timestamp: { $gte: startDate, $lt: endDate },

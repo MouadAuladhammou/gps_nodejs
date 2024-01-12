@@ -1,3 +1,5 @@
+const xss = require("xss");
+
 // Convertir un tableau de modèles Sequelize en JSON
 const convertToJson = (data) => data.map((item) => item.toJSON());
 
@@ -20,9 +22,38 @@ const getHourlyDateWithoutMinutes = (timestamp) => {
   return `${year}_${month}_${day}__${hour}`;
 };
 
+// nettoyer les données entrantes (body et query) pour chaque requête
+const cleanData = (data, maxLength = 255) => {
+  try {
+    if (data == null) {
+      return null;
+    }
+
+    if (typeof data === "string" && data.trim() === "") {
+      return "";
+    }
+
+    if (typeof data === "string") {
+      data = data.trim();
+    }
+
+    if (typeof data === "string" && data.length > maxLength) {
+      data = data.substring(0, maxLength);
+    }
+
+    // Nettoyer les données potentiellement dangereuses contre XSS
+    data = xss(data);
+
+    return data;
+  } catch (e) {
+    return null;
+  }
+};
+
 module.exports = {
   convertToJson,
   convertMapToObject,
   hasSameImeiAndTimestamp,
   getHourlyDateWithoutMinutes,
+  cleanData,
 };
