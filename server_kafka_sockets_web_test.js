@@ -1,5 +1,5 @@
 const express = require("express");
-const expressGraphQL = require("express-graphql").graphqlHTTP;
+// const expressGraphQL = require("express-graphql").graphqlHTTP; // NB: This package has been deprecated
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const app = express();
@@ -33,6 +33,7 @@ app.use("/api/admin", admin);
 app.use("/api/map", map);
 app.use("/api/geographic", geographic);
 
+/*
 app.use(
   "/api/graphql/locations",
   expressGraphQL({
@@ -40,6 +41,7 @@ app.use(
     graphiql: true,
   })
 );
+*/
 
 /*
 // kafka config
