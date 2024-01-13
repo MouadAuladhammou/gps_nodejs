@@ -123,7 +123,7 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 const updateUser = asyncHandler(async (req, res) => {
-  const updatedUser = await User.update(
+  await User.update(
     {
       last_name: req.body.last_name,
       first_name: req.body.first_name,
@@ -140,7 +140,8 @@ const updateUser = asyncHandler(async (req, res) => {
       where: { id: req.params.id },
     }
   );
-  res.status(200).send(updatedUser);
+  const user = await User.findByPk(req.params.id);
+  res.status(200).send(user);
 });
 
 const checkEmailUnique = asyncHandler(async (req, res) => {

@@ -7,6 +7,7 @@
     "start:producer": "node ./producer/index.js",
     "start:consumer": "node ./consumer/index.js",
     "start:server": "node server.js",
+    "start:test": "jest",
     "start:producer2": "node ./producer/index2.js",
     "start:producer3": "node ./producer/index3.js"
   },
@@ -45,5 +46,8 @@
     "sticky-session": "^1.1.2",
     "teltonika-parser": "0.0.15",
     "xss": "^1.0.14"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }
