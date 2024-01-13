@@ -16,10 +16,10 @@ jobs:
         npm-version: [6.14.11]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
 
     - name: Use Node.js ${{ matrix.node-version }} and npm ${{ matrix.npm-version }}
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v2
       with:
         node-version: ${{ matrix.node-version }}
         npm-version: ${{ matrix.npm-version }}
