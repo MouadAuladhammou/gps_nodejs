@@ -52,8 +52,8 @@ it("Test user update", async () => {
       address: "address test",
       city: "city test",
       postal_code: "postal_code test",
-      cell_phone: "cell_phone test",
-      work_phone: "work_phone test",
+      cell_phone: "06060606069",
+      work_phone: "06060606061",
       password: "123456",
     },
     params: {
@@ -79,8 +79,8 @@ it("Test user update", async () => {
     address: "address test",
     city: "city test",
     postal_code: "postal_code test",
-    cell_phone: "cell_phone test",
-    work_phone: "work_phone test",
+    cell_phone: "06060606069",
+    work_phone: "06060606061",
     password: "123456",
   };
 
