@@ -4,7 +4,7 @@ const app = express();
 const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 
-// Clean request Data
+// Clean and sanitize request Data
 const { sanitizeData } = require("./middleware/sanitize_data.js");
 app.use(sanitizeData);
 
@@ -58,7 +58,7 @@ const binutils = require("binutils64");
 
 // Connecter aux bases de données
 const createRedisClient = require("./config/redis");
-const connectMongoDB = require("./config/mongodb.js");
+const { connectMongoDB } = require("./config/mongodb.js");
 const { connectMySQL } = require("./config/mysql.js");
 connectMongoDB();
 connectMySQL();
