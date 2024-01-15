@@ -7,7 +7,7 @@
     "start:producer": "node ./producer/index.js",
     "start:consumer": "node ./consumer/index.js",
     "start:server": "node server.js",
-    "start:test": "jest",
+    "start:test": "jest --detectOpenHandles",
     "start:producer2": "node ./producer/index2.js",
     "start:producer3": "node ./producer/index3.js"
   },

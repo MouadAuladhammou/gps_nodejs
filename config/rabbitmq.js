@@ -6,6 +6,7 @@ const smsQueueName = "smsQueue"; // nom de la file d'attente (Queue) pour l'envo
 // Créer une connexion à RabbitMQ
 const connectToRabbitMQ = async () => {
   try {
+    if (process.env.NODE_ENV === "test") return;
     const connection = await amqp.connect(rabbitMQUrl); // NB: Créer un seul canal avec deux files d'attente (Queues)
     const channel = await connection.createChannel();
     // NB: Echange (Exchange) utilisé ici est "AMQP default" avec type "direct".
