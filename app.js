@@ -1,0 +1,54 @@
+const express = require("express");
+const app = express();
+
+const bodyParser = require("body-parser");
+app.use(bodyParser.json());
+
+// Clean and sanitize request Data
+const { sanitizeData } = require("./middleware/sanitize_data.js");
+app.use(sanitizeData);
+
+// Allow cross-origin
+const cors = require("cors");
+app.use(cors({ origin: "*" }));
+
+// Toutes les réponses de APIs seront retardées de 5 secondes grâce au middleware "express-delay"
+const expressDelay = require("express-delay");
+// app.use(expressDelay(5000));
+
+// Middleware avec un délai de timeout de 60 secondes
+const timeout = require("connect-timeout");
+app.use(timeout("60s"));
+
+// Modules
+const location = require("./modules/location.js");
+// const location_graphql = require("./modules/location_graphql.js"); // GraphQL
+const user = require("./modules/user.js");
+const admin = require("./modules/admin.js");
+const geo = require("./modules/geographic.js");
+const group = require("./modules/group.js");
+const rules = require("./modules/rule.js");
+const settings = require("./modules/settings.js");
+const vehicle = require("./modules/vehicle.js");
+
+// routes API :
+app.use("/api/locations", location);
+app.use("/api/users", user);
+app.use("/api/admin", admin);
+app.use("/api/geo", geo);
+app.use("/api/groups", group);
+app.use("/api/rules", rules);
+app.use("/api/settings", settings);
+app.use("/api/vehicles", vehicle);
+
+// ======================================================== [ Test API ] ======================================================== //
+app.get("/heavy", (req, res) => {
+  let total = 0;
+  for (let i = 0; i < 5_000_000; i++) {
+    total++;
+  }
+  res.send(`The result of the CPU intensive task is ${total}\n`);
+});
+// ============================================================================================================================== //
+
+module.exports = app;

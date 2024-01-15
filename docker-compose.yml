@@ -19,3 +19,23 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_NUM_PARTITIONS: "12"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    services:
+
+  redis:
+    image: "redis:latest"
+    container_name: "redis"
+    ports:
+      - "6379:6379"
+    command: redis-server --bind 0.0.0.0
+    volumes:
+      - ./data:/data
+
+  rabbitmq:
+    image: "rabbitmq:management"
+    container_name: "rabbitmq"
+    ports:
+      - "5672:5672" # Port pour l'accès à RabbitMQ
+      - "15672:15672" # Port pour l'interface de gestion (RabbitMQ Management Plugin)
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
