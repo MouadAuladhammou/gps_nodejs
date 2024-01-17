@@ -4,8 +4,7 @@ const app = require("../../app");
 describe("API Users Test", () => {
   let server;
   beforeAll(() => {
-    // Avant que les tests ne commencent, démarrez le serveur (ou initialisez d'autres ressources)
-    server = app.listen(3000); // Remplacez 3000 par le port que votre application utilise
+    server = app.listen(3000);
   });
 
   it("GET /api/users/all should return a list of users", async () => {
@@ -19,8 +18,7 @@ describe("API Users Test", () => {
     expect(response.body).toHaveProperty("totalPages");
   });
 
-  afterAll((done) => {
-    // Après que tous les tests soient terminés, arrêtez le serveur (ou nettoyez d'autres ressources)
-    server.close(done);
+  afterAll(() => {
+    server.close();
   });
 });
