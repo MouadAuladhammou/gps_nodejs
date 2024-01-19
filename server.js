@@ -513,10 +513,6 @@ connectMySQL();
       }
     }
 
-    // Middleware error handler
-    const errorHandler = require("./middleware/errorHanadler");
-    app.use(errorHandler);
-
     const PORT = process.env.PORT || 5001;
     httpServer.listen(PORT, () => console.log(`App listening on port ${PORT}`));
 

@@ -145,8 +145,13 @@ const updateUser = asyncHandler(async (req, res) => {
 });
 
 const checkEmailUnique = asyncHandler(async (req, res) => {
-  const foundUser = await User.findOne({ where: { email: req.query.q } });
-  foundUser ? res.status(200).send(true) : res.status(200).send(false);
+  try {
+    const foundUser = await User.findOne({ where: { email: req.query.q } });
+    foundUser ? res.status(200).send(true) : res.status(200).send(false);
+  } catch (err) {
+    res.status(400);
+    throw new Error("Error checking email uniqueness");
+  }
 });
 
 const checkCinUnique = asyncHandler(async (req, res) => {
