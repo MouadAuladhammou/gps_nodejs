@@ -126,7 +126,6 @@ const {
   loginUser,
   currentUser,
   registerUser,
-  updateUser,
   checkEmailUnique,
   checkCinUnique,
   checkPhoneNumberUnique,
@@ -137,14 +136,13 @@ const {
 
 // Admin
 router.post("/", verifyAdminToken, createAndCheckUser);
-router.put("/", verifyAdminToken, updateAndCheckUser);
+router.put("/:id", verifyAdminToken, updateAndCheckUser);
 router.delete("/:id", verifyAdminToken, deleteUser);
 
 // User
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/logged-in", verifyToken, currentUser);
-router.put("/:id", verifyToken, updateUser);
 router.get("/email/unique", checkEmailUnique);
 router.get("/cin/unique", checkCinUnique);
 router.get("/phone/unique", checkPhoneNumberUnique);

@@ -1,45 +1,24 @@
 const asyncHandler = require("express-async-handler");
-const { User, Group, Vehicle, Setting } = require("../models/index.js");
+const { User } = require("../models/index.js");
+const userService = require("../services/userService");
 const { Op } = require("sequelize");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const loginUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const user = await User.findOne({
-      where: { email: req.body.email, password: req.body.password },
-      include: [
-        {
-          model: Group,
-          as: "groupes",
-          include: [
-            {
-              model: Vehicle,
-              as: "vehicles",
-            },
-            {
-              model: Setting,
-              as: "setting",
-              attributes: ["id", "name", "description"],
-            },
-          ],
-        },
-      ],
-    });
-
+    const user = await userService.login(email, password);
     if (!user) {
       res.status(404);
       throw new Error("User not found");
     } else {
-      let payload = { subject: user.id };
-      const token = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_DURING,
-      });
+      const token = userService.generateAuthToken(user);
       res.status(200).send({ token, user });
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error: " + err.message);
+    throw new Error("Internal Server Error", err);
   }
 });
 
@@ -47,46 +26,32 @@ const currentUser = asyncHandler(async (req, res) => {
   // s'assurer que les en-têtes de réponse n'ont pas encore été envoyés
   if (!res.headersSent) {
     if (req.userId) {
-      // Obtenir les informations de l'utilisateur actuel, puis les inclure dans la réponse
-      const user = await User.findOne({
-        where: { id: req.userId },
-        include: [
-          {
-            model: Group,
-            as: "groupes",
-            include: [
-              {
-                model: Vehicle,
-                as: "vehicles",
-              },
-              {
-                model: Setting,
-                as: "setting",
-                attributes: ["id", "name", "description"],
-              },
-            ],
-          },
-        ],
-      });
+      try {
+        // Obtenir les informations de l'utilisateur actuel, puis les inclure dans la réponse
+        const user = await userService.getCurrentUser(req.userId);
 
-      if (user) {
-        res.status(200).send({
-          user,
-        });
+        if (user) {
+          res.status(200).send({
+            user,
+          });
 
-        // ceci juste pour tester la réponse lourde
-        // let responseSent = false;
-        // setTimeout(() => {
-        //   if (!responseSent) {
-        //     res.status(200).send({
-        //       user,
-        //     });
-        //     responseSent = true;
-        //   }
-        // }, 5000);
-      } else {
-        res.status(404);
-        throw new Error("User not found");
+          // ceci juste pour tester la réponse lourde
+          // let responseSent = false;
+          // setTimeout(() => {
+          //   if (!responseSent) {
+          //     res.status(200).send({
+          //       user,
+          //     });
+          //     responseSent = true;
+          //   }
+          // }, 5000);
+        } else {
+          res.status(404);
+          throw new Error("User not found");
+        }
+      } catch (err) {
+        res.status(500);
+        throw new Error("Internal Server Error", err);
       }
     }
   }
@@ -122,28 +87,6 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 });
 
-const updateUser = asyncHandler(async (req, res) => {
-  await User.update(
-    {
-      last_name: req.body.last_name,
-      first_name: req.body.first_name,
-      email: req.body.email,
-      cin: req.body.cin,
-      address: req.body.address,
-      city: req.body.city,
-      postal_code: req.body.postal_code,
-      cell_phone: req.body.cell_phone,
-      work_phone: req.body.work_phone,
-      password: req.body.password,
-    },
-    {
-      where: { id: req.params.id },
-    }
-  );
-  const user = await User.findByPk(req.params.id);
-  res.status(200).send(user);
-});
-
 const checkEmailUnique = asyncHandler(async (req, res) => {
   try {
     const foundUser = await User.findOne({ where: { email: req.query.q } });
@@ -170,20 +113,7 @@ const checkPhoneNumberUnique = asyncHandler(async (req, res) => {
 
 const createAndCheckUser = asyncHandler(async (req, res) => {
   try {
-    // Essayer d'insérer le User
-    const user = await User.create({
-      last_name: req.body.last_name,
-      first_name: req.body.first_name,
-      email: req.body.email,
-      cin: req.body.cin,
-      address: req.body.address,
-      city: req.body.city,
-      postal_code: req.body.postal_code,
-      cell_phone: req.body.cell_phone,
-      work_phone: req.body.work_phone,
-      password: req.body.password,
-      status: req.body.status,
-    });
+    const user = await userService.create(req.body);
     res.status(201).send(user);
   } catch (error) {
     // Vérifier si l'erreur est liée à une violation d'unicité dans MySQL
@@ -212,28 +142,10 @@ const createAndCheckUser = asyncHandler(async (req, res) => {
 });
 
 const updateAndCheckUser = asyncHandler(async (req, res) => {
-  const { id } = req.body;
+  const { id } = req.params;
   try {
-    await User.update(
-      {
-        last_name: req.body.last_name,
-        first_name: req.body.first_name,
-        email: req.body.email,
-        cin: req.body.cin,
-        address: req.body.address,
-        city: req.body.city,
-        postal_code: req.body.postal_code,
-        cell_phone: req.body.cell_phone,
-        work_phone: req.body.work_phone,
-        password: req.body.password,
-        status: req.body.status,
-      },
-      {
-        where: { id },
-      }
-    );
-    // res.status(200).send(true);
-    const user = await User.findByPk(id);
+    await userService.update(id, req.body);
+    const user = await userService.getUserById(id);
     res.status(200).send({
       user,
     });
@@ -264,13 +176,17 @@ const updateAndCheckUser = asyncHandler(async (req, res) => {
 });
 
 const deleteUser = asyncHandler(async (req, res) => {
-  const rowDeleted = await User.destroy({
-    where: { id: req.params.id },
-  });
-  if (rowDeleted) res.status(204).end();
-  else {
-    res.status(404);
-    throw new Error("User not found");
+  const { id } = req.params;
+  try {
+    const rowDeleted = await userService.remove(id);
+    if (rowDeleted) res.status(204).end();
+    else {
+      res.status(404);
+      throw new Error("User not found");
+    }
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
@@ -278,7 +194,6 @@ module.exports = {
   loginUser,
   currentUser,
   registerUser,
-  updateUser,
   checkEmailUnique,
   checkCinUnique,
   checkPhoneNumberUnique,
