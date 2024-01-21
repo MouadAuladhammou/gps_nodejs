@@ -1,230 +1,160 @@
 const asyncHandler = require("express-async-handler");
-var { GeoConfiguration } = require("../models/geographic");
+const GeoService = require("../services/geoService");
 
 const getGeoConfiguration = asyncHandler(async (req, res) => {
-  const userId = req.userId;
-  const geoJson = await GeoConfiguration.findOne({ user_id: userId });
-  if (geoJson) {
-    res.status(200).send({
-      geoJson,
-    });
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  try {
+    const userId = req.userId;
+    const geoJson = await GeoService.getGeoConfiguration(userId);
+    if (geoJson) {
+      res.status(200).send({
+        geoJson,
+      });
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
+    }
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const createPoint = asyncHandler(async (req, res) => {
-  const pointJson = req.body;
-  const config = await GeoConfiguration.findOneAndUpdate(
-    { user_id: req.userId },
-    {
-      $push: {
-        points: pointJson,
-      },
+  try {
+    const userId = req.userId;
+    const pointJson = req.body;
+    const config = await GeoService.createPoint(userId, pointJson);
+    if (config) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
     }
-  );
-
-  if (config) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const createPolygon = asyncHandler(async (req, res) => {
-  const polygonJson = req.body;
-  const config = await GeoConfiguration.findOneAndUpdate(
-    { user_id: req.userId },
-    {
-      $push: {
-        polygons: polygonJson,
-      },
+  try {
+    const userId = req.userId;
+    const polygonJson = req.body;
+    const config = await GeoService.createPolygon(userId, polygonJson);
+    if (config) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
     }
-  );
-
-  if (config) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const createLine = asyncHandler(async (req, res) => {
-  const lineJson = req.body;
-  const config = await GeoConfiguration.findOneAndUpdate(
-    { user_id: req.userId },
-    {
-      $push: {
-        lines: lineJson,
-      },
+  try {
+    const userId = req.userId;
+    const lineJson = req.body;
+    const config = await GeoService.createLine(userId, lineJson);
+    if (config) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
     }
-  );
-
-  if (config) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const updateContentPopup = asyncHandler(async (req, res) => {
-  const data = req.body;
-  let config = null;
-
-  switch (data.type) {
-    case "point":
-      config = await GeoConfiguration.findOneAndUpdate(
-        { user_id: req.userId, "points.properties.id": data.id },
-        { $set: { "points.$.properties.desc": data.contentText } }
-      );
-      break;
-
-    case "polygon":
-      config = await GeoConfiguration.findOneAndUpdate(
-        { user_id: req.userId, "polygons.properties.id": data.id },
-        { $set: { "polygons.$.properties.desc": data.contentText } }
-      );
-      break;
-
-    case "line":
-      config = await GeoConfiguration.findOneAndUpdate(
-        { user_id: req.userId, "lines.properties.id": data.id },
-        { $set: { "lines.$.properties.desc": data.contentText } }
-      );
-      break;
-
-    default:
-      res.status(400).send("Invalid type");
-      return;
-  }
-
-  if (config) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  try {
+    const userId = req.userId;
+    const data = req.body;
+    const config = await GeoService.updateContentPopup(userId, data);
+    if (config) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
+    }
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const updatePoint = asyncHandler(async (req, res) => {
-  const data = req.body;
-  const config = await GeoConfiguration.findOneAndUpdate(
-    {
-      user_id: req.userId,
-      "points.properties.id": data.dataJson.properties.id,
-    },
-    {
-      $set: {
-        "points.$.geometry.coordinates": data.dataJson.geometry.coordinates,
-      },
+  try {
+    const userId = req.userId;
+    const dataJson = req.body.dataJson;
+    const config = await GeoService.updatePoint(userId, dataJson);
+    if (config) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
     }
-  );
-
-  if (config) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const updatePolygon = asyncHandler(async (req, res) => {
-  const data = req.body;
-  const config = await GeoConfiguration.findOneAndUpdate(
-    {
-      user_id: req.userId,
-      "polygons.properties.id": data.dataJson.properties.id,
-    },
-    {
-      $set: {
-        "polygons.$.geometry.coordinates": data.dataJson.geometry.coordinates,
-      },
+  try {
+    const userId = req.userId;
+    const dataJson = req.body.dataJson;
+    const config = await GeoService.updatePolygon(userId, dataJson);
+    if (config) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
     }
-  );
-
-  if (config) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const updateLine = asyncHandler(async (req, res) => {
-  const data = req.body;
-  const config = await GeoConfiguration.findOneAndUpdate(
-    {
-      user_id: req.userId,
-      "lines.properties.id": data.dataJson.properties.id,
-    },
-    {
-      $set: {
-        "lines.$.geometry.coordinates": data.dataJson.geometry.coordinates,
-      },
+  try {
+    const userId = req.userId;
+    const dataJson = req.body.dataJson;
+    const config = await GeoService.updateLine(userId, dataJson);
+    if (config) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Config not found");
     }
-  );
-
-  if (config) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Config not found");
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const deleteGeoConfiguration = asyncHandler(async (req, res) => {
-  const data = req.body;
-  let result;
-
-  switch (data.type) {
-    case "point":
-      result = await GeoConfiguration.findOneAndUpdate(
-        { user_id: req.userId },
-        {
-          $pull: {
-            points: {
-              "properties.id": data.id,
-            },
-          },
-        }
-      );
-      break;
-
-    case "polygon":
-      result = await GeoConfiguration.findOneAndUpdate(
-        { user_id: req.userId },
-        {
-          $pull: {
-            polygons: {
-              "properties.id": data.id,
-            },
-          },
-        }
-      );
-      break;
-
-    case "line":
-      result = await GeoConfiguration.findOneAndUpdate(
-        { user_id: req.userId },
-        {
-          $pull: {
-            lines: {
-              "properties.id": data.id,
-            },
-          },
-        }
-      );
-      break;
-  }
-
-  if (result) {
-    res.status(204).end();
-  } else {
-    res.status(404).send("GeoConfiguration not found");
+  try {
+    const userId = req.userId;
+    const data = req.body;
+    const result = await GeoService.deleteGeoConfiguration(
+      userId,
+      data.type,
+      data.id
+    );
+    if (result) {
+      res.status(204).end();
+    } else {
+      res.status(404).send("GeoConfiguration not found");
+    }
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
