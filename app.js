@@ -52,11 +52,13 @@ app.get("/heavy", (req, res) => {
 // ============================================================================================================================== //
 
 // Middleware pour gérer les erreurs et les enregistrer dans Sentry.
-const initSentry = require("./middleware/sentry");
-const Sentry = initSentry(app);
-app.use(Sentry.Handlers.requestHandler()); // Middleware pour gérer les requêtes entrantes et les enregistre dans Sentry.
-app.use(Sentry.Handlers.tracingHandler()); // Middleware pour gérer la traçabilité des transactions (tracing) dans Sentry.
-app.use(Sentry.Handlers.errorHandler());
+if (process.env.NODE_ENV !== "test") {
+  const initSentry = require("./middleware/sentry");
+  const Sentry = initSentry(app);
+  app.use(Sentry.Handlers.requestHandler()); // Middleware pour gérer les requêtes entrantes et les enregistre dans Sentry.
+  app.use(Sentry.Handlers.tracingHandler()); // Middleware pour gérer la traçabilité des transactions (tracing) dans Sentry.
+  app.use(Sentry.Handlers.errorHandler());
+}
 
 // Middleware error handler
 const errorHandler = require("./middleware/errorHanadler");
