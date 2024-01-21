@@ -91,7 +91,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     const settingId = req.params.id;
     const newStatus = req.body.status;
 
-    const updatedRows = await settingService.updateStatus(
+    const updatedRows = await SettingService.updateStatus(
       userId,
       settingId,
       newStatus
