@@ -1,139 +1,111 @@
 const asyncHandler = require("express-async-handler");
-const { sequelize } = require("../config/mysql.js");
-const { Setting, Rule } = require("../models/index.js");
+const SettingService = require("../services/settingService");
 
 const getSettings = asyncHandler(async (req, res) => {
-  const settings = await Setting.findAll({
-    where: { user_id: req.userId },
-    include: "rules",
-  });
-  res.status(200).send(settings);
+  try {
+    const userId = req.userId;
+    const settings = await SettingService.getSettings(userId);
+    res.status(200).send(settings);
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
+  }
 });
 
 const getSetting = asyncHandler(async (req, res) => {
-  const setting = await Setting.findOne({
-    where: { id: req.params.id, user_id: req.userId },
-    include: [{ model: Rule, as: "rules" }],
-  });
-  if (!setting) {
-    res.status(404);
-    throw new Error("Setting not found");
+  try {
+    const userId = req.userId;
+    const settingId = req.params.id;
+    const setting = await SettingService.getSettingById(userId, settingId);
+    if (!setting) {
+      res.status(404);
+      throw new Error("Setting not found");
+    }
+    res.status(200).send(setting);
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
-  res.status(200).send(setting);
 });
 
 const createSetting = asyncHandler(async (req, res) => {
-  const ruleIds = req.body.rules.map((rule) => rule.item_id); // IDs des règles à associer
-  let transaction;
   try {
-    const { name, description } = req.body;
-    transaction = await sequelize.transaction();
-    const rules = await Rule.findAll({
-      where: { id: ruleIds, user_id: req.userId },
-    });
-    if (rules.length !== ruleIds.length) {
-      res.status(500);
-      throw new Error("Une ou plusieurs règles n'existent pas");
-    }
+    const userId = req.userId;
+    const settingData = req.body;
 
-    const setting = await Setting.create(
-      {
-        name,
-        description,
-        user_id: req.userId,
-      },
-      { transaction }
+    const createdSetting = await SettingService.createSetting(
+      userId,
+      settingData
     );
 
-    await setting.addRules(rules, { transaction });
-    await transaction.commit();
-    const settingWithRules = await Setting.findByPk(setting.id, {
-      include: "rules",
-    });
-
     res.status(201).send({
-      setting: settingWithRules,
+      setting: createdSetting,
     });
-  } catch (error) {
-    if (transaction) await transaction.rollback();
+  } catch (err) {
     res.status(500);
-    throw new Error("Erreur lors de la création du setting :", error);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const updateSetting = asyncHandler(async (req, res) => {
-  const rules = req.body.rules;
-  const ruleIds = rules.map((rule) => rule.item_id); // IDs des règles à associer
-  let transaction;
   try {
-    const { name, description } = req.body;
-    transaction = await sequelize.transaction();
-    const rules = await Rule.findAll({
-      where: {
-        id: ruleIds,
-        user_id: req.userId, // Vérifiez si les règles sont pour l'utilisateur actuel
-      },
-    });
-    if (rules.length !== ruleIds.length) {
-      res.status(500);
-      throw new Error("Une ou plusieurs règles n'existent pas");
-    }
+    const userId = req.userId;
+    const settingId = req.params.id;
+    const settingData = req.body;
 
-    await Setting.update(
-      {
-        name,
-        description,
-      },
-      {
-        where: { id: req.params.id, user_id: req.userId },
-      },
-      { transaction }
+    const updatedSetting = await SettingService.updateSetting(
+      userId,
+      settingId,
+      settingData
     );
 
-    const setting = await Setting.findByPk(req.params.id);
-    await setting.removeRules(await setting.getRules(), { transaction });
-    await setting.addRules(rules, { transaction });
-    await transaction.commit();
-    const settingWithRules = await Setting.findByPk(setting.id, {
-      include: "rules",
-    });
     res.status(200).send({
-      setting: settingWithRules,
+      setting: updatedSetting,
     });
-  } catch (error) {
-    if (transaction) await transaction.rollback();
+  } catch (err) {
     res.status(500);
-    throw new Error("Échec de la modification de l'enregistrement : ", error);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const deleteSetting = asyncHandler(async (req, res) => {
-  const rowDeleted = await Setting.destroy({
-    where: { id: req.params.id, user_id: req.userId },
-  });
-
-  if (rowDeleted) res.status(204).end();
-  // Envoie une réponse vide sans corps avec le statut 200
-  else {
-    res.status(404);
-    throw new Error("Setting not found");
+  try {
+    const userId = req.userId;
+    const settingId = req.params.id;
+    const rowDeleted = await SettingService.deleteSetting(userId, settingId);
+    if (rowDeleted) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Setting not found");
+    }
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
 const updateStatus = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
+  try {
+    const userId = req.userId;
+    const settingId = req.params.id;
+    const newStatus = req.body.status;
 
-  const [updatedRows] = await Setting.update(
-    { status },
-    { where: { id, user_id: req.userId } }
-  );
+    const updatedRows = await settingService.updateStatus(
+      userId,
+      settingId,
+      newStatus
+    );
 
-  if (updatedRows > 0) {
-    res.status(204).end();
-  } else {
-    res.status(404);
-    throw new Error("Setting not found");
+    if (updatedRows > 0) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Setting not found");
+    }
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error", err);
   }
 });
 
