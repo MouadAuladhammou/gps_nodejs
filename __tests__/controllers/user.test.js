@@ -2,7 +2,7 @@ const { connectMySQL, sequelize } = require("../../config/mysql.js");
 const {
   loginUser,
   currentUser,
-  updateUser,
+  updateAndCheckUser,
 } = require("../../controllers/userController.js");
 
 beforeAll(async () => {
@@ -67,26 +67,30 @@ it("Test user update", async () => {
   };
 
   expect.assertions(2);
-  await updateUser(req, res);
+  await updateAndCheckUser(req, res);
   expect(res.status).toHaveBeenCalledWith(200);
 
   const expectedUpdatedUser = {
-    id: 1,
-    last_name: "last_name",
-    first_name: "first_name",
-    email: "test@hotmail.com",
-    cin: "L111111",
-    address: "address test",
-    city: "city test",
-    postal_code: "postal_code test",
-    cell_phone: "06060606069",
-    work_phone: "06060606061",
-    password: "123456",
+    user: {
+      id: 1,
+      last_name: "last_name",
+      first_name: "first_name",
+      email: "test@hotmail.com",
+      cin: "L111111",
+      address: "address test",
+      city: "city test",
+      postal_code: "postal_code test",
+      cell_phone: "06060606069",
+      work_phone: "06060606061",
+      password: "123456",
+    },
   };
 
-  // expect(res.send).toHaveBeenCalledWith(expectedUpdatedUser); // NB: Il retourne un objet complet incluant des attributs de Sequelize.
+  // NB: Il retourne un objet complet incluant des attributs de Sequelize.
   expect(res.send).toHaveBeenCalledWith(
-    expect.objectContaining(expectedUpdatedUser)
+    expect.objectContaining({
+      user: expect.objectContaining(expectedUpdatedUser.user),
+    })
   );
 });
 

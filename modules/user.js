@@ -1,5 +1,5 @@
 const express = require("express");
-var router = express.Router();
+const router = express.Router();
 const { User, Group, Vehicle } = require("../models/index.js");
 const { verifyToken, verifyAdminToken } = require("../middleware/check_token");
 
