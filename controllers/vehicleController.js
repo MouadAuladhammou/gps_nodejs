@@ -1,8 +1,10 @@
 const asyncHandler = require("express-async-handler");
 const { Op } = require("sequelize");
-const { Group, Vehicle, User, Setting } = require("../models/index.js");
+const { Vehicle } = require("../models/index.js");
+const VehicleService = require("../services/vehicleService");
+const { getCurrentUser } = require("../services/userService");
 
-// Admin (Methode 1)
+// Admin (Methode 1) // => Obsolète
 const checkVehicleData = asyncHandler(async (req, res) => {
   const { imei, registration_number } = req.body;
   try {
@@ -35,29 +37,9 @@ const checkVehicleData = asyncHandler(async (req, res) => {
 
 // Admin (Methode 2)
 const createAndCheckVehicle = asyncHandler(async (req, res) => {
-  const {
-    imei,
-    registration_number,
-    groupe_id,
-    make,
-    model,
-    year,
-    mileage,
-    type,
-  } = req.body;
   try {
     // Essayer d'insérer le véhicule
-    const vehicle = await Vehicle.create({
-      imei,
-      groupe_id,
-      make,
-      model,
-      year,
-      mileage,
-      type,
-      registration_number,
-    });
-
+    const vehicle = await VehicleService.create(req.body);
     res.status(201).send(vehicle);
   } catch (error) {
     // Vérifier si l'erreur est liée à une violation d'unicité dans MySQL
@@ -81,70 +63,17 @@ const createAndCheckVehicle = asyncHandler(async (req, res) => {
 // Admin
 const updateAndCheckVehicle = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const {
-    imei,
-    registration_number,
-    groupe_id,
-    make,
-    model,
-    year,
-    mileage,
-    type,
-  } = req.body;
-
   try {
     // NB: Si la mise à jour réussit, renvoyer les données complètes de l'utilisateur concerné
     //  car si un groupe de véhicules est modifié, il faut récupérer à nouveau les données pour les afficher correctement sur l'interface utilisateur (back office).
-
-    // Récupérer le user_id à partir de la table "groupes"
-    const groupe = await Group.findOne({
-      attributes: ["user_id"],
-      where: {
-        id: groupe_id,
-      },
-    });
-
-    if (!groupe) {
-      // Gérer le cas où le groupe n'est pas trouvé
+    const user_id = await VehicleService.update(id, req.body);
+    if (user_id) {
+      const user = await getCurrentUser(user_id);
+      res.status(200).send(user);
+    } else {
       res.status(404);
-      throw new Error("Groupe non trouvé.");
+      throw new Error("Utilisateur non trouvé!");
     }
-
-    const user_id = groupe.user_id;
-
-    // Essayer de mettre à jour le véhicule
-    await Vehicle.update(
-      {
-        imei,
-        groupe_id,
-        make,
-        model,
-        year,
-        mileage,
-        type,
-        registration_number,
-      },
-      {
-        where: { id },
-      }
-    );
-
-    const user = await User.findOne({
-      where: { id: user_id },
-      include: [
-        {
-          model: Group,
-          as: "groupes",
-          include: [
-            {
-              model: Vehicle,
-              as: "vehicles",
-            },
-          ],
-        },
-      ],
-    });
-    res.status(200).send(user);
   } catch (error) {
     // Vérifier si l'erreur est liée à une violation d'unicité dans MySQL
     if (error.name === "SequelizeUniqueConstraintError") {
@@ -159,112 +88,46 @@ const updateAndCheckVehicle = asyncHandler(async (req, res) => {
       // Une autre erreur s'est produite
       console.error("Erreur lors de la mise à jour du véhicule", error);
       res.status(500);
-      throw new Error("Internal Server Error");
+      throw new Error("Internal Server Error" + error);
     }
   }
 });
 
 // Admin
 const deleteVehicle = asyncHandler(async (req, res) => {
-  const rowDeleted = await Vehicle.destroy({
-    where: { id: req.params.id },
-  });
-  if (rowDeleted) res.status(204).end();
-  else {
-    res.status(404);
-    throw new Error("Group not found");
+  try {
+    const vehicleId = req.params.id;
+    const isDeleted = await VehicleService.remove(vehicleId);
+
+    if (isDeleted) {
+      res.status(204).end();
+    } else {
+      res.status(404);
+      throw new Error("Vehicle not found!");
+    }
+  } catch (error) {
+    res.status(500);
+    throw new Error("Internal Server Error", error);
   }
 });
 
 // User
 const changeGroupVehicle = asyncHandler(async (req, res) => {
-  const { id: vehicleId } = req.params;
-  const { groupId } = req.body;
   try {
-    // vérifier le groupe
-    const groupe = await Group.findOne({
-      attributes: ["user_id"],
-      where: {
-        id: groupId,
-        user_id: req.userId,
-      },
-    });
-    if (!groupe) {
-      // Gérer le cas où le groupe n'est pas trouvé
-      res.status(404);
-      throw new Error("Groupe non trouvé.");
-    }
+    const { id: vehicleId } = req.params;
+    const { groupId } = req.body;
 
-    // vérifier le vehicule
-    const vehicle = await Vehicle.findOne({
-      where: { id: vehicleId },
-      include: [
-        {
-          model: Group,
-          as: "group",
-          attributes: ["user_id"],
-        },
-      ],
-    });
-    if (!vehicle || vehicle?.group.user_id !== req.userId) {
-      // Gérer le cas où le groupe n'est pas trouvé
-      res.status(404);
-      throw new Error("Groupe ou Vehicule non trouvé.");
-    }
-
-    // Essayer de mettre à jour le véhicule
-    await Vehicle.update(
-      {
-        groupe_id: groupId,
-      },
-      {
-        where: { id: vehicleId },
-      }
+    const groupsWithVehicles = await VehicleService.changeGroupVehicle(
+      vehicleId,
+      groupId,
+      req.userId
     );
 
-    const groupsWithVehicles = await Group.findAll({
-      attributes: ["id", "user_id", "name", "description", "vehicles.imei"], // Sélectionnez les attributs à inclure dans le résultat
-      where: { user_id: req.userId },
-      order: [["name", "ASC"]], // Trier des résultats par nom dans l'ordre croissant
-      include: [
-        {
-          model: Vehicle,
-          as: "vehicles",
-          attributes: [
-            "id",
-            "groupe_id",
-            "imei",
-            "make",
-            "model",
-            "year",
-            "mileage",
-            "type",
-            "registration_number",
-          ],
-        },
-        {
-          model: Setting,
-          as: "setting",
-          attributes: ["id", "name", "description"],
-        },
-      ],
-      // limit: 10, // Limitez le nombre de résultats à 10
-    });
-
-    if (groupsWithVehicles) {
-      res.status(200).send({ groupsWithVehicles });
-    } else {
-      res.status(404);
-      throw new Error("Group not found");
-    }
+    res.status(200).send({ groupsWithVehicles });
   } catch (error) {
-    // Une autre erreur s'est produite
-    console.error(
-      "Erreur lors de la modification du grouoe de véhicule",
-      error
-    );
+    console.error("Erreur lors du changement de groupe de véhicule", error);
     res.status(500);
-    throw new Error("Internal Server Error");
+    throw new Error("Internal Server Error", error);
   }
 });
 
