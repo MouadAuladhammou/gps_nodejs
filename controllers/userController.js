@@ -11,14 +11,14 @@ const loginUser = asyncHandler(async (req, res) => {
     const user = await userService.login(email, password);
     if (!user) {
       res.status(404);
-      throw new Error("User not found");
+      throw new Error("User not found!");
     } else {
       const token = userService.generateAuthToken(user);
       res.status(200).send({ token, user });
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -47,11 +47,11 @@ const currentUser = asyncHandler(async (req, res) => {
           // }, 5000);
         } else {
           res.status(404);
-          throw new Error("User not found");
+          throw new Error("User not found!");
         }
       } catch (err) {
         res.status(500);
-        throw new Error("Internal Server Error", err);
+        throw new Error("Internal Server Error: " + err.message);
       }
     }
   }
@@ -83,7 +83,7 @@ const registerUser = asyncHandler(async (req, res) => {
     });
   } else {
     res.status(400);
-    throw new Error("User data is not valid");
+    throw new Error("User data is not valid!");
   }
 });
 
@@ -93,7 +93,7 @@ const checkEmailUnique = asyncHandler(async (req, res) => {
     foundUser ? res.status(200).send(true) : res.status(200).send(false);
   } catch (err) {
     res.status(400);
-    throw new Error("Error checking email uniqueness");
+    throw new Error("Error checking email uniqueness: " + err.message);
   }
 });
 
@@ -134,9 +134,8 @@ const createAndCheckUser = asyncHandler(async (req, res) => {
       });
     } else {
       // Une autre erreur s'est produite
-      console.error("Erreur lors de la création d'utilisateur", error);
       res.status(500);
-      throw new Error("Internal Server Error");
+      throw new Error("Internal Server Error: " + error.message);
     }
   }
 });
@@ -168,9 +167,8 @@ const updateAndCheckUser = asyncHandler(async (req, res) => {
       });
     } else {
       // Une autre erreur s'est produite
-      console.error("Erreur lors de la modification d'utilisateur", error);
       res.status(500);
-      throw new Error("Internal Server Error");
+      throw new Error("Internal Server Error:" + error.message);
     }
   }
 });
@@ -186,7 +184,7 @@ const deleteUser = asyncHandler(async (req, res) => {
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error" + err.message);
   }
 });
 

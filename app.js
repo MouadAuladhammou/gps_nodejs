@@ -20,16 +20,16 @@ const expressDelay = require("express-delay");
 const timeout = require("connect-timeout");
 app.use(timeout("60s"));
 
-// Modules
-const location = require("./modules/location.js");
-// const location_graphql = require("./modules/location_graphql.js"); // GraphQL
-const user = require("./modules/user.js");
-const admin = require("./modules/admin.js");
-const geo = require("./modules/geographic.js");
-const group = require("./modules/group.js");
-const rules = require("./modules/rule.js");
-const settings = require("./modules/settings.js");
-const vehicle = require("./modules/vehicle.js");
+// Routes
+const location = require("./routes/locationRoute.js");
+// const location_graphql = require("./routes/location_graphql.js"); // GraphQL
+const user = require("./routes/userRoute.js");
+const admin = require("./routes/adminRoute.js");
+const geo = require("./routes/geographicRoute.js");
+const group = require("./routes/groupRoute.js");
+const rules = require("./routes/ruleRoute.js");
+const settings = require("./routes/settingRoute.js");
+const vehicle = require("./routes/vehicleRoute.js");
 
 // routes API :
 app.use("/api/locations", location);

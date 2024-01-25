@@ -5,12 +5,12 @@ const { Admin, User } = require("../models/index.js");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { Op } = require("sequelize");
-const { verifyAdminToken } = require("../middleware/check_token");
+const { verifyAdminToken } = require("../middleware/check_token.js");
 const {
   addTokenToRedis,
   removeTokenFromRedis,
   isTokenInRedis,
-} = require("../utils/functions");
+} = require("../utils/functions.js");
 
 // Super Admin (cette partie est pas encore traitée)
 /////////////////////////////////////////////////

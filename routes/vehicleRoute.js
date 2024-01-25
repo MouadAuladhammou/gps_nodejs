@@ -1,6 +1,9 @@
 const express = require("express");
 var router = express.Router();
-const { verifyToken, verifyAdminToken } = require("../middleware/check_token");
+const {
+  verifyToken,
+  verifyAdminToken,
+} = require("../middleware/check_token.js");
 
 const {
   deleteVehicle,

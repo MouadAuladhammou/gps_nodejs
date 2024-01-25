@@ -8,7 +8,7 @@ const getSettings = asyncHandler(async (req, res) => {
     res.status(200).send(settings);
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -19,12 +19,12 @@ const getSetting = asyncHandler(async (req, res) => {
     const setting = await SettingService.getSettingById(userId, settingId);
     if (!setting) {
       res.status(404);
-      throw new Error("Setting not found");
+      throw new Error("Setting not found!");
     }
     res.status(200).send(setting);
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -43,7 +43,7 @@ const createSetting = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -64,7 +64,7 @@ const updateSetting = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -77,11 +77,11 @@ const deleteSetting = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Setting not found");
+      throw new Error("Setting not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -101,11 +101,11 @@ const updateStatus = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Setting not found");
+      throw new Error("Setting not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 

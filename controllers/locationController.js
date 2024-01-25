@@ -30,7 +30,7 @@ const getLocations = asyncHandler(async (req, res) => {
     res.status(200).send({ ...dataHistory });
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -51,7 +51,7 @@ const getLocationsByImeis = asyncHandler(async (req, res) => {
     res.status(200).send({ ...dataHistory });
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -64,7 +64,7 @@ const getRecentDaysConsumptionAndDistance = asyncHandler(async (req, res) => {
     res.status(200).send({ ...data });
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -77,7 +77,7 @@ const getLastYearConsumptionAndDistance = asyncHandler(async (req, res) => {
     res.status(200).send({ ...data });
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -89,7 +89,7 @@ const getLastRecord = asyncHandler(async (req, res) => {
     res.status(200).send(location);
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -112,9 +112,8 @@ const getLastRecords = asyncHandler(async (req, res) => {
       res.status(400).send('Paramètre "imeis" manquant ou vide.');
     }
   } catch (err) {
-    console.error(err);
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -126,7 +125,7 @@ const getNotifications = asyncHandler(async (req, res) => {
     res.status(200).send(notifications);
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -141,9 +140,8 @@ const deleteNotification = asyncHandler(async (req, res) => {
     );
     updated ? res.status(204).end() : res.status(404).end();
   } catch (err) {
-    console.error(err);
     res.status(500);
-    throw new Error("Internal Server Error: ", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -158,9 +156,8 @@ const updateNotificationsStatus = asyncHandler(async (req, res) => {
 
     success ? res.status(204).end() : res.status(404).end();
   } catch (err) {
-    console.error(err);
     res.status(500);
-    throw new Error("Internal Server Error: ", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 

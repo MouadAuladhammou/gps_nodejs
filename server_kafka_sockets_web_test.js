@@ -18,13 +18,12 @@ require("./config/mysql.js");
 // Models
 var { Location } = require("./models/location.js");
 
-// Modules
-const location = require("./modules/location.js");
-const location_graphql = require("./modules/location_graphql.js"); // GraphQL
-const user = require("./modules/user.js");
-const admin = require("./modules/admin.js");
-const map = require("./modules/map.js");
-const geographic = require("./modules/geographic.js");
+// Routes
+const location = require("./routes/locationRoute.js");
+// const location_graphql = require("./routes/location_graphql.js"); // GraphQL
+const user = require("./routes/userRoute.js");
+const admin = require("./routes/adminRoute.js");
+const geographic = require("./routes/geographicRoute.js");
 
 // routes
 app.use("/api/locations", location);

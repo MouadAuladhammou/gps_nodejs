@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const { User, Group, Vehicle } = require("../models/index.js");
-const { verifyToken, verifyAdminToken } = require("../middleware/check_token");
+const {
+  verifyToken,
+  verifyAdminToken,
+} = require("../middleware/check_token.js");
 
 require("dotenv").config();
 const { Op } = require("sequelize");

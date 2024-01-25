@@ -278,7 +278,7 @@ class LocationService {
           } else {
             return { count: 0, result: [] };
           }
-        } catch (e) {
+        } catch (err) {
           throw new Error(err.message);
         }
       }

@@ -11,11 +11,11 @@ const getGeoConfiguration = asyncHandler(async (req, res) => {
       });
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -28,11 +28,11 @@ const createPoint = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -45,11 +45,11 @@ const createPolygon = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -62,11 +62,11 @@ const createLine = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -79,11 +79,11 @@ const updateContentPopup = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -96,11 +96,11 @@ const updatePoint = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -113,11 +113,11 @@ const updatePolygon = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -130,11 +130,11 @@ const updateLine = asyncHandler(async (req, res) => {
       res.status(204).end();
     } else {
       res.status(404);
-      throw new Error("Config not found");
+      throw new Error("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 
@@ -150,11 +150,11 @@ const deleteGeoConfiguration = asyncHandler(async (req, res) => {
     if (result) {
       res.status(204).end();
     } else {
-      res.status(404).send("GeoConfiguration not found");
+      res.status(404).send("Config not found!");
     }
   } catch (err) {
     res.status(500);
-    throw new Error("Internal Server Error", err);
+    throw new Error("Internal Server Error: " + err.message);
   }
 });
 

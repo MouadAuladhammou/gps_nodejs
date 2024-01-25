@@ -16,9 +16,9 @@ const updateGroup = asyncHandler(async (req, res) => {
     res.status(200).send({
       group: updatedGroup,
     });
-  } catch (error) {
+  } catch (err) {
     res.status(500);
-    throw new Error("Échec de la modification de groupe", error);
+    throw new Error("Échec de la modification de groupe: " + err.message);
   }
 });
 
@@ -27,11 +27,10 @@ const createGroupByAdmin = asyncHandler(async (req, res) => {
   try {
     const group = await GroupService.createGroupByAdmin(req.body);
     res.status(201).send(group);
-  } catch (error) {
+  } catch (err) {
     res.status(500);
     throw new Error(
-      "Une erreur s'est produite lors de la création du groupe: ",
-      error
+      "Une erreur s'est produite lors de la création du groupe: " + err.message
     );
   }
 });
@@ -41,11 +40,10 @@ const createGroupByUser = asyncHandler(async (req, res) => {
   try {
     const group = await GroupService.createGroupByUser(req.userId, req.body);
     res.status(201).send(group);
-  } catch (error) {
+  } catch (err) {
     res.status(500);
     throw new Error(
-      "Une erreur s'est produite lors de la création du groupe: ",
-      error
+      "Une erreur s'est produite lors de la création du groupe: " + err.message
     );
   }
 });
@@ -57,7 +55,7 @@ const deleteGroupByAdmin = asyncHandler(async (req, res) => {
     res.status(204).end();
   } catch (error) {
     res.status(404);
-    throw new Error("Group not found");
+    throw new Error("Group not found!");
   }
 });
 
@@ -66,9 +64,9 @@ const deleteGroupByUser = asyncHandler(async (req, res) => {
   try {
     await GroupService.deleteGroupByUser(req.params.id, req.userId);
     res.status(204).end();
-  } catch (error) {
+  } catch (err) {
     res.status(404);
-    throw new Error("Group not found", error);
+    throw new Error("Group not found!");
   }
 });
 

@@ -29,9 +29,9 @@ const checkVehicleData = asyncHandler(async (req, res) => {
         exists: false,
       });
     }
-  } catch (e) {
+  } catch (err) {
     res.status(500);
-    throw new Error("Échec", e.message);
+    throw new Error("Error: " + err.message);
   }
 });
 
@@ -55,7 +55,7 @@ const createAndCheckVehicle = asyncHandler(async (req, res) => {
       // Une autre erreur s'est produite
       console.error("Erreur lors de la création du véhicule", error);
       res.status(500);
-      throw new Error("Internal Server Error");
+      throw new Error("Internal Server Error: " + error.message);
     }
   }
 });
@@ -88,7 +88,7 @@ const updateAndCheckVehicle = asyncHandler(async (req, res) => {
       // Une autre erreur s'est produite
       console.error("Erreur lors de la mise à jour du véhicule", error);
       res.status(500);
-      throw new Error("Internal Server Error" + error);
+      throw new Error("Internal Server Error: " + error.message);
     }
   }
 });
@@ -107,7 +107,7 @@ const deleteVehicle = asyncHandler(async (req, res) => {
     }
   } catch (error) {
     res.status(500);
-    throw new Error("Internal Server Error", error);
+    throw new Error("Internal Server Error: " + error.message);
   }
 });
 
@@ -127,7 +127,7 @@ const changeGroupVehicle = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error("Erreur lors du changement de groupe de véhicule", error);
     res.status(500);
-    throw new Error("Internal Server Error", error);
+    throw new Error("Internal Server Error: " + error.message);
   }
 });
 

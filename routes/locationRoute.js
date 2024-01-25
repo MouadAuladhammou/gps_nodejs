@@ -1,6 +1,6 @@
 const express = require("express");
 var router = express.Router();
-const { verifyToken } = require("../middleware/check_token");
+const { verifyToken } = require("../middleware/check_token.js");
 const {
   getLocations,
   getLocationsByImeis,
