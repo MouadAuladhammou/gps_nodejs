@@ -601,6 +601,43 @@ const publishDataToQueues = async (imei, data) => {
   }
 };
 
+const publishDataToEmailQueues = async (data) => {
+  const dataEmail = {
+    subject: data.subject,
+    messageContent: data.messageContent,
+    sender: "no-reply@nextgps.ma",
+    to: "client@hotmail.com",
+    created_at: new Date(),
+  };
+
+  try {
+    const channel = await rabbitMQChannel;
+    channel.sendToQueue(
+      "emailServiceQueue",
+      Buffer.from(JSON.stringify(dataEmail), {
+        persistent: true,
+      })
+    );
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const consumeMessagesReturnEmail = async (data) => {
+  try {
+    const channel = await rabbitMQChannel;
+    channel.consume("returnEmailServiceQueue", (data) => {
+      const mail = JSON.parse(data.content.toString());
+      console.log("mail", mail);
+      // const email = JSON.parse(data.content);
+      // await ==> modifier dans la base de email que cette emeil a ete bien dilivré
+      channel.ack(data);
+    });
+  } catch (err) {
+    console.log(err);
+  }
+};
+
 // Créer une connexion à RabbitMQ et consommez les messages
 const consumeMessagesForMongoDB = async () => {
   try {
@@ -764,4 +801,6 @@ module.exports = {
   publishDataToQueues,
   consumeMessagesForMongoDB,
   consumeMessagesForSMS,
+  publishDataToEmailQueues,
+  consumeMessagesReturnEmail,
 };

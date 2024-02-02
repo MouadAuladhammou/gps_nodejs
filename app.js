@@ -10,7 +10,7 @@ app.use(sanitizeData);
 
 // Allow cross-origin
 const cors = require("cors");
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "http://localhost:8000" })); // Accepter uniquement les requêtes provenant de gateway locale.
 
 // Toutes les réponses de APIs seront retardées de 5 secondes grâce au middleware "express-delay"
 const expressDelay = require("express-delay");

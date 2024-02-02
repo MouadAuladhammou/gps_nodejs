@@ -2,6 +2,7 @@ const amqp = require("amqplib");
 const rabbitMQUrl = "amqp://admin:admin@localhost"; // URL RabbitMQ
 const mongoDBQueueName = "mongoDBQueue"; // nom de la file d'attente (Queue) pour enregistrer les données dans la base de données MongoDB
 const smsQueueName = "smsQueue"; // nom de la file d'attente (Queue) pour l'envoi de messages SMS
+const returnEmailServiceQueue = "returnEmailServiceQueue";
 
 // Créer une connexion à RabbitMQ
 const connectToRabbitMQ = async () => {
@@ -17,7 +18,9 @@ const connectToRabbitMQ = async () => {
     // NB: la création de la file d'attente ici est effectuée avec la configuration { durable: true }, ce qui signifie que la file d'attente sera durable et survivra à un redémarrage du serveur RabbitMQ.
     await channel.assertQueue(mongoDBQueueName, { durable: true });
     await channel.assertQueue(smsQueueName, { durable: true });
+    await channel.assertQueue(returnEmailServiceQueue, { durable: true });
     console.log("RabbitMQ connection succeeded.");
+
     return channel;
   } catch (error) {
     console.error("Error connecting to RabbitMQ:", error);

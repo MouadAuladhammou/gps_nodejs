@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const { User } = require("../models/index.js");
 const userService = require("../services/userService");
 const { Op } = require("sequelize");
+const { publishDataToEmailQueues } = require("../utils/functions");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
@@ -188,6 +189,19 @@ const deleteUser = asyncHandler(async (req, res) => {
   }
 });
 
+const sendMail = asyncHandler(async (req, res) => {
+  try {
+    publishDataToEmailQueues(req.body);
+    return res.status(201).send({
+      message: "Email sendig successfully",
+      // email,
+    });
+  } catch (err) {
+    res.status(500);
+    throw new Error("Internal Server Error" + err.message);
+  }
+});
+
 module.exports = {
   loginUser,
   currentUser,
@@ -198,4 +212,5 @@ module.exports = {
   createAndCheckUser,
   updateAndCheckUser,
   deleteUser,
+  sendMail,
 };

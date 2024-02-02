@@ -22,6 +22,7 @@ const {
   publishDataToQueues,
   consumeMessagesForMongoDB,
   consumeMessagesForSMS,
+  consumeMessagesReturnEmail,
 } = require("./utils/functions");
 
 const {
@@ -127,6 +128,7 @@ connectMySQL();
 
     consumeMessagesForMongoDB();
     consumeMessagesForSMS();
+    consumeMessagesReturnEmail();
 
     // ============================================================================================================================== //
     // ======================================================[ Socket GPS TCP ]====================================================== //
@@ -514,7 +516,10 @@ connectMySQL();
     }
 
     const PORT = process.env.PORT || 5001;
-    httpServer.listen(PORT, () => console.log(`App listening on port ${PORT}`));
+    const HOST = "localhost"; // il n'acceptera que les connexions provenant de la machine locale.
+    httpServer.listen(PORT, HOST, () =>
+      console.log(`App listening on port ${PORT}`)
+    );
 
     // ============================================================================================================================== //
     // ===========================================================[ TEST ]=========================================================== //

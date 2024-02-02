@@ -135,6 +135,7 @@ const {
   createAndCheckUser,
   updateAndCheckUser,
   deleteUser,
+  sendMail,
 } = require("../controllers/userController.js");
 
 // Admin
@@ -149,5 +150,6 @@ router.get("/logged-in", verifyToken, currentUser);
 router.get("/email/unique", checkEmailUnique);
 router.get("/cin/unique", checkCinUnique);
 router.get("/phone/unique", checkPhoneNumberUnique);
+router.post("/mail", sendMail);
 
 module.exports = router;
