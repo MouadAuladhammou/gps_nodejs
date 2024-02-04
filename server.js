@@ -516,7 +516,7 @@ connectMySQL();
     }
 
     const PORT = process.env.PORT || 5001;
-    const HOST = "localhost"; // il n'acceptera que les connexions provenant de la machine locale.
+    const HOST = "localhost"; // il n'acceptera que les connexions provenant de reseaux local (gateway).
     httpServer.listen(PORT, HOST, () =>
       console.log(`App listening on port ${PORT}`)
     );

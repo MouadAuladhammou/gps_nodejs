@@ -476,6 +476,49 @@ class LocationService {
       );
     }
   }
+
+  async getRecentLocations(userId) {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - 7);
+
+    return getOrSetCache(
+      `${userId}:getRecentLocations:${userId}`,
+      86400, // 24h,
+      async () => {
+        try {
+          const Location = createLocationModel(userId);
+          const result =
+            (await Location.aggregate([
+              {
+                $match: {
+                  timestamp: { $gte: startDate, $lte: endDate },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  latitude: "$gps.latitude",
+                  longitude: "$gps.longitude",
+                },
+              },
+            ])) || [];
+
+          const locationData = result.map((location) => [
+            location?.latitude,
+            location?.longitude,
+            1,
+          ]);
+
+          return locationData || [];
+        } catch (error) {
+          throw new Error(
+            "Erreur lors de la récupération des notifications: " + error.message
+          );
+        }
+      }
+    );
+  }
 }
 
 module.exports = new LocationService();

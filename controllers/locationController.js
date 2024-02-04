@@ -81,6 +81,16 @@ const getLastYearConsumptionAndDistance = asyncHandler(async (req, res) => {
   }
 });
 
+const getRecentLocations = asyncHandler(async (req, res) => {
+  try {
+    const userId = req.userId;
+    const recentLocations = await LocationService.getRecentLocations(userId);
+    res.status(200).send(recentLocations);
+  } catch (err) {
+    throw new Error("Internal Server Error: " + err.message);
+  }
+});
+
 const getLastRecord = asyncHandler(async (req, res) => {
   try {
     const imei = req.params.imei;
@@ -171,4 +181,5 @@ module.exports = {
   updateNotificationsStatus,
   getRecentDaysConsumptionAndDistance,
   getLastYearConsumptionAndDistance,
+  getRecentLocations,
 };
