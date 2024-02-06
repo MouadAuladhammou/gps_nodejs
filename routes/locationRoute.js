@@ -12,12 +12,14 @@ const {
   getRecentDaysConsumptionAndDistance,
   getLastYearConsumptionAndDistance,
   getRecentLocations,
+  getTotalDistanceTraveledToday,
 } = require("../controllers/locationController.js");
 
 router.get("/", verifyToken, getLocations);
 router.get("/history", verifyToken, getLocationsByImeis);
 router.get("/chart/days", verifyToken, getRecentDaysConsumptionAndDistance);
 router.get("/chart/year", verifyToken, getLastYearConsumptionAndDistance);
+router.get("/total-distance-today", verifyToken, getTotalDistanceTraveledToday);
 router.get("/map", verifyToken, getRecentLocations);
 router.get("/:imei/last-record", verifyToken, getLastRecord);
 router.get("/last-recordS", verifyToken, getLastRecords);

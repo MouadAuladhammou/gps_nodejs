@@ -352,6 +352,86 @@ class LocationService {
     );
   }
 
+  async getTotalDistanceTraveledToday(userId) {
+    try {
+      const Location = createLocationModel(userId);
+
+      // Obtenir la date actuelle
+      const currentDate = new Date();
+
+      // Définir la date de début comme début du jour actuel
+      const startDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        currentDate.getDate(),
+        0,
+        0,
+        0
+      );
+
+      // Définir la date de fin comme fin du jour actuel
+      const endDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        currentDate.getDate(),
+        23,
+        59,
+        59
+      );
+
+      const result = await Location.aggregate([
+        {
+          $match: {
+            timestamp: { $gte: startDate, $lte: endDate },
+          },
+        },
+        {
+          $sort: { timestamp: 1 },
+        },
+        {
+          $group: {
+            _id: {
+              imei: "$imei",
+              date: {
+                $dateToString: { format: "%Y-%m-%d", date: "$timestamp" },
+              },
+            },
+            firstOdometer: { $first: "$ioElements.Total Odometer" },
+            lastOdometer: { $last: "$ioElements.Total Odometer" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            imei: "$_id.imei",
+            date: "$_id.date",
+            odometerDiff: {
+              $subtract: ["$lastOdometer", "$firstOdometer"],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$date",
+            totalOdometerDiff: { $sum: "$odometerDiff" },
+          },
+        },
+        {
+          $sort: { _id: 1 }, // Tri par jour ascendant
+        },
+      ]);
+
+      if (result.length > 0) {
+        const count = result.length;
+        return { count, result: result[0] }; // NB: ce sera toujours un tableau contenant un seul objet
+      } else {
+        return { count: 0, result: {} };
+      }
+    } catch (err) {
+      throw new Error(err.message);
+    }
+  }
+
   async getLastRecord(imei, userId) {
     const Location = createLocationModel(userId);
     return Location.findOne().where({ imei }).sort({ created_at: -1 });
