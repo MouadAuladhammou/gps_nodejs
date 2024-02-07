@@ -53,7 +53,7 @@ app.get("/heavy", (req, res) => {
 
 // Middleware pour gérer les erreurs et les enregistrer dans Sentry.
 if (process.env.NODE_ENV !== "test") {
-  const initSentry = require("./middleware/sentry");
+  const initSentry = require("./config/sentry");
   const Sentry = initSentry(app);
   app.use(Sentry.Handlers.requestHandler()); // Middleware pour gérer les requêtes entrantes et les enregistre dans Sentry.
   app.use(Sentry.Handlers.tracingHandler()); // Middleware pour gérer la traçabilité des transactions (tracing) dans Sentry.
