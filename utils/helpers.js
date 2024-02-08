@@ -50,10 +50,43 @@ const cleanData = (data, maxLength = 255) => {
   }
 };
 
+function formatFrenchDate(timestamp) {
+  const date = new Date(timestamp);
+
+  const months = [
+    "Janvier",
+    "Février",
+    "Mars",
+    "Avril",
+    "Mai",
+    "Juin",
+    "Juillet",
+    "Août",
+    "Septembre",
+    "Octobre",
+    "Novembre",
+    "Décembre",
+  ];
+
+  // Obtenir le mois, le jour et l'année
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+  const year = date.getFullYear();
+
+  // Obtenir l'heure et les minutes
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+
+  // Formater la date
+  const formattedDate = `${month} ${day}-${year}, ${hours}h${minutes}min`;
+  return formattedDate;
+}
+
 module.exports = {
   convertToJson,
   convertMapToObject,
   hasSameImeiAndTimestamp,
   getHourlyDateWithoutMinutes,
   cleanData,
+  formatFrenchDate,
 };

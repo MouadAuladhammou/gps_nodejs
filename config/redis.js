@@ -17,7 +17,7 @@ const createRedisClient = async (database = 0) => {
     await redisClient.select(database);
     // Socket & Channel => 0 (Par defaut)
     // Historical Data & Search => 2
-    // Local Values => 3
+    // Local Values (y compris les notifications) => 3
     // latest GPS data values (Key: latestDataFromGPSClients) => 4
     // Clients GPS Connected => 5
     // refresh Tokens => 6

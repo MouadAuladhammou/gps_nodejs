@@ -20,6 +20,7 @@ const {
   getConnectedVehiclesCount,
 
   publishDataToQueues,
+  publishDataToEmailQueues,
   consumeMessagesForMongoDB,
   consumeMessagesForSMS,
   consumeMessagesReturnEmail,
@@ -115,7 +116,7 @@ connectMySQL();
           "Total Odometer": 3116,
         },
         timestamp: new Date(),
-        created_at: "date time",
+        created_at: new Date(),
       });
       res.json({
         message:
@@ -156,6 +157,7 @@ connectMySQL();
         // Enregistrer la notification en tant que notification horaire (étape 3) :
         // NB: Si une notification du même type est détectée dans un délai n'excédant pas une heure, alors elle n'est pas enregistrée en tant que notification qui doit être affichée sur la NavBar
         const hourlyDate = getHourlyDateWithoutMinutes(values.timestamp);
+        let emailDataQueue = [];
         if (
           Array.isArray(valuesWithNotifs.notifications) &&
           valuesWithNotifs.notifications.length > 0
@@ -167,7 +169,10 @@ connectMySQL();
             const isSameNotifOnHour = await checkNotificationKeyExistence(
               notificationKey
             );
-            !isSameNotifOnHour && (notification.viewedOnNavBar = false);
+            if (!isSameNotifOnHour) {
+              notification.viewedOnNavBar = false;
+              emailDataQueue.push(notification);
+            }
           }
         }
 
@@ -180,6 +185,15 @@ connectMySQL();
 
         // Envoyer les données à RabbitMQ pour consommation
         publishDataToQueues(imei, valuesWithNotifs);
+
+        // Envoyer des données à RabbitMQ pour envoyer des e-mails de notification
+        emailDataQueue.length > 0 &&
+          publishDataToEmailQueues(
+            valuesWithNotifs.userId,
+            valuesWithNotifs.userEmail,
+            valuesWithNotifs.timestamp,
+            emailDataQueue
+          );
       }
     };
 

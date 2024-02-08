@@ -14,6 +14,7 @@ const {
   convertToJson,
   convertMapToObject,
   getHourlyDateWithoutMinutes,
+  formatFrenchDate,
 } = require("../utils/helpers");
 
 // RabbitMQ
@@ -87,7 +88,7 @@ const getVehicleWithSettings = async (imei) => {
               {
                 model: User,
                 as: "user",
-                attributes: ["cell_phone", "work_phone"],
+                attributes: ["id", "cell_phone", "work_phone", "email"],
               },
               {
                 model: Setting,
@@ -237,6 +238,16 @@ const manageNotifications = async (vehicleWithSettings, values) => {
   return new Promise((resolve, reject) => {
     if (!values.notifications) {
       values.notifications = [];
+    }
+
+    // Ajouter id de utulisateur à utiliser pour envoyer des emails en cas de notification
+    if (!values.userId) {
+      values.userId = vehicleWithSettings?.group?.user?.id;
+    }
+
+    // Ajouter un Email à utiliser pour envoyer des emails en cas de notification
+    if (!values.userEmail) {
+      values.userEmail = vehicleWithSettings?.group?.user?.email;
     }
 
     // Ajouter un numéro de téléphone à utiliser pour envoyer des SMS en cas de notification
@@ -601,13 +612,27 @@ const publishDataToQueues = async (imei, data) => {
   }
 };
 
-const publishDataToEmailQueues = async (data) => {
+const publishDataToEmailQueues = async (
+  userId,
+  to,
+  timestamp,
+  emailDataQueue
+) => {
+  // Construire le contenu de l'e-mail
+  let emailContent = "<h2>Nouvelles notifications:</h2>";
+  emailContent += "<ul>";
+  emailDataQueue.forEach((notification) => {
+    emailContent += "<li>";
+    emailContent += `<p>${notification.message}</p>`;
+    emailContent += "</li>";
+  });
+  emailContent += "</ul>";
+
   const dataEmail = {
-    subject: data.subject,
-    messageContent: data.messageContent,
-    sender: "no-reply@nextgps.ma",
-    to: "client@hotmail.com",
-    created_at: new Date(),
+    subject: "⚠️​ Notifications - " + formatFrenchDate(timestamp),
+    content: emailContent,
+    to,
+    userId,
   };
 
   try {
