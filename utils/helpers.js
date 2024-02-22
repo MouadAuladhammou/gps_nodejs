@@ -82,6 +82,19 @@ function formatFrenchDate(timestamp) {
   return formattedDate;
 }
 
+function isDateToday(timestamp) {
+  const dateToCheck = new Date(timestamp);
+  const currentDate = new Date();
+
+  // Comparer l'année, le mois et le jour
+  const isToday =
+    dateToCheck.getFullYear() === currentDate.getFullYear() &&
+    dateToCheck.getMonth() === currentDate.getMonth() &&
+    dateToCheck.getDate() === currentDate.getDate();
+
+  return isToday;
+}
+
 module.exports = {
   convertToJson,
   convertMapToObject,
@@ -89,4 +102,5 @@ module.exports = {
   getHourlyDateWithoutMinutes,
   cleanData,
   formatFrenchDate,
+  isDateToday,
 };

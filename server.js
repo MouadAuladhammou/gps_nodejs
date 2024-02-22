@@ -29,6 +29,7 @@ const {
 const {
   hasSameImeiAndTimestamp,
   getHourlyDateWithoutMinutes,
+  isDateToday,
 } = require("./utils/helpers");
 
 const { verifySocketToken } = require("./middleware/check_token");
@@ -115,7 +116,7 @@ connectMySQL();
           "GSM Operator": 60401,
           "Total Odometer": 3116,
         },
-        timestamp: new Date(),
+        timestamp: new Date("2024-02-22T17:20:57.033+00:00"),
         created_at: new Date(),
       });
       res.json({
@@ -176,12 +177,21 @@ connectMySQL();
           }
         }
 
-        // Initialiser un canal "gpsDataChannel" pour détecter les changements en temps réel des données du GPS connecté via TCP afin qu'elles soient détectées et accessibles dans le traitement du socket Web.
+        // Initialiser ID d'utilisateur et ses IMEIs associés
+        const { imeis = [], userId = null } = await getUserImeisByImei(imei);
+
+        // Initialiser un canal "gpsDataChannell" pour détecter les changements en temps réel des données du GPS connecté via TCP afin qu'elles soient détectées et accessibles dans le traitement du socket Web.
         const redisClient = redisClientPromise;
-        redisClient.publish(
-          "gpsDataChannel",
-          JSON.stringify({ imei, values: valuesWithNotifs })
-        );
+        isDateToday(values.timestamp) && // Vérifier si la date est d'aujourd'hui
+          redisClient.publish(
+            "gpsDataChannel",
+            JSON.stringify({
+              imei,
+              values: valuesWithNotifs,
+              associatedImeis: imeis,
+              userId,
+            })
+          );
 
         // Envoyer les données à RabbitMQ pour consommation
         publishDataToQueues(imei, valuesWithNotifs);
@@ -197,15 +207,13 @@ connectMySQL();
       }
     };
 
-    const sendChartToOpenWebSockets = async (imei) => {
-      if (io.sockets.adapter.rooms.has(`${imei}_notif`)) {
-        // si cette Room est trouvée, c-v-d l'utilisateur concerné est connecté, car celui qui a créé cette Room, alors il faut envoyer les données dans les sockets respectives
-        const { imeis, userId } = await getUserImeisByImei(imei);
-
+    const sendChartToOpenWebSockets = async (imeis, userId) => {
+      if (imeis.length > 0 && userId) {
         const socketIdsInRoom = Array.from(
           io.sockets.adapter.rooms.get(userId) || []
         );
 
+        console.log("socketIdsInRoom - CHART", socketIdsInRoom);
         if (socketIdsInRoom.length > 0 && imeis.length > 0) {
           const { totalVehicles, connectedVehiclesCount } =
             await getConnectedVehiclesCount(imeis);
@@ -257,13 +265,21 @@ connectMySQL();
             c.remoteAddress + ":" + c.remotePort
           );
 
+          // Initialiser les IMEI associés et leur utilisateur
+          const { imeis = [], userId = null } = await getUserImeisByImei(imei);
+
           // Émet un statut déconnecté pour les sockets Web respectifs dans toutes les Workers
           const redisClient = redisClientPromise;
           redisClient.publish(
             "gpsDataChannel",
-            JSON.stringify({ imei, values: null, isDisconnected: true })
+            JSON.stringify({
+              imei,
+              values: null,
+              isDisconnected: true,
+              associatedImeis: imeis,
+              userId,
+            })
           );
-          sendChartToOpenWebSockets(imei);
         }
 
         await deleteLatestData(imei);
@@ -308,7 +324,6 @@ connectMySQL();
                 if (gps.longitude && gps.latitude) {
                   // mettre à jour les données du client GPS avec les dernières données reçues pour etre détecté et envoyé par la suite dans les web sockets
                   observeChanges(imei, { gps, timestamp, ioElements, imei });
-                  sendChartToOpenWebSockets(imei);
                 }
 
                 // réinitialiser le délai lorsqu'il y a des données
@@ -439,16 +454,18 @@ connectMySQL();
           imei,
           values,
           isDisconnected = null,
+          associatedImeis = [],
+          userId = null,
         } = JSON.parse(message.toString());
 
         // On peut maintenant gérer les données et les diffuser sur les sockets Web concernées
         const socketIdsInRoom = Array.from(
-          io.sockets.adapter.rooms.get(imei) || []
+          io.sockets.adapter.rooms.get(imei) || [] // get sockets on this node
         );
         const socketIdsInRoomNotif = Array.from(
-          io.sockets.adapter.rooms.get(`${imei}_notif`) || []
+          io.sockets.adapter.rooms.get(`${imei}_notif`) || [] // get sockets on this node
         );
-        console.log("socketIdsInRoom", socketIdsInRoom);
+        console.log("socketIdsInRoom - IMEI", socketIdsInRoom);
         console.log("socketIdsInRoomNotif", socketIdsInRoomNotif);
 
         // Verifier d'abord si le message pour se deconnecter lors de la fermeture de la connexion TCP
@@ -464,6 +481,8 @@ connectMySQL();
           broadcast(imei, `device_imei_connected_${imei}`, {
             isConnected: false,
           });
+
+          sendChartToOpenWebSockets(associatedImeis, userId);
           return;
         }
 
@@ -504,6 +523,8 @@ connectMySQL();
           broadcast(imei, `device_imei_connected_${imei}`, {
             isConnected: true,
           });
+
+          sendChartToOpenWebSockets(associatedImeis, userId);
         }
       });
     } catch (e) {
@@ -513,7 +534,7 @@ connectMySQL();
     function broadcast(imei, eventName, value) {
       // Vérifier si la salle (room) existe déjà. NB: il verifie cette Romm s'il existe juste dans Worker en cours
       if (io.sockets.adapter.rooms.has(imei)) {
-        io.to(imei).emit(eventName, value);
+        io.local.to(imei).emit(eventName, value); // NB: "local" => for send to all clients on this node (when using multiple nodes)
         console.log(
           "🚀🚀🚀 Broadcast (On -Worker- " + process.pid + ") to the Room -",
           imei,

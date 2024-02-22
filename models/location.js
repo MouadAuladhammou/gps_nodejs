@@ -18,7 +18,7 @@ const createLocationModel = (userId) => {
     return modelsMap.get(collectionName);
   }
 
-  const Location = mongoose.model(collectionName, {
+  const LocationSchema = mongoose.Schema({
     imei: { type: Number, required: true },
     gps: {
       latitude: { type: Number, required: true },
@@ -35,6 +35,10 @@ const createLocationModel = (userId) => {
     notifications: { type: Object, required: false },
     created_at: { type: Date },
   });
+
+  // Créer un index composite sur "timestamp" et "imei"
+  LocationSchema.index({ timestamp: 1, imei: 1 }, { unique: true });
+  const Location = mongoose.model(collectionName, LocationSchema);
 
   // Stocker le modèle créé dans la Map pour les utilisations futures
   modelsMap.set(collectionName, Location);

@@ -353,39 +353,41 @@ const getImeisByUser = async (userId) => {
 };
 
 const getUserImeisByImei = async (imei) => {
-  try {
-    // Recherchez l'utilisateur associé à l'IMEI d'entrée
-    const user = await User.findOne({
-      attributes: ["id"],
-      include: [
-        {
-          model: Group,
-          as: "groupes",
-          attributes: [],
-          include: [
-            {
-              model: Vehicle,
-              as: "vehicles",
-              attributes: [],
-              where: {
-                imei: imei,
+  return await getOrSetCache(`userImeis?imei:${imei}`, 3600, async () => {
+    try {
+      // Recherchez l'utilisateur associé à l'IMEI d'entrée
+      const user = await User.findOne({
+        attributes: ["id"],
+        include: [
+          {
+            model: Group,
+            as: "groupes",
+            attributes: [],
+            include: [
+              {
+                model: Vehicle,
+                as: "vehicles",
+                attributes: [],
+                where: {
+                  imei: imei,
+                },
               },
-            },
-          ],
-        },
-      ],
-    });
-    const userId = user.id || false;
-    if (userId) {
-      // Recherchez toutes les IMEIs associées à l'utilisateur
-      const imeis = await getImeisByUser(userId);
-      return { imeis, userId };
-    } else {
-      return {};
+            ],
+          },
+        ],
+      });
+      const userId = user.id || false;
+      if (userId) {
+        // Rechercher toutes les IMEIs associées à l'utilisateur
+        const imeis = await getImeisByUser(userId);
+        return { imeis, userId };
+      } else {
+        return {};
+      }
+    } catch (e) {
+      console.log("Error", e);
     }
-  } catch (e) {
-    console.log("Error", e);
-  }
+  });
 };
 
 // ======================================================== [ Fonctions Rdis ] ======================================================== //
@@ -701,11 +703,25 @@ const consumeMessagesForMongoDB = async () => {
             // const Location = createLocationModel(userId);
             const Location = createLocationModel(3); // ceci juste pour le test
             // Insérer les données dans MongoDB
-            await Location.create(gpsData);
-            console.log(
-              `Message inserted into MongoDB in collection: user_${userId}__locations`,
-              gpsData
-            );
+            try {
+              await Location.create(gpsData);
+              console.log(
+                `Message inserted into MongoDB in collection: user_${userId}__locations`,
+                gpsData
+              );
+            } catch (error) {
+              if (
+                error.code === 11000 &&
+                error.keyPattern.timestamp &&
+                error.keyPattern.imei
+              ) {
+                console.error(
+                  "La paire timestamp et imei existe déjà dans la base de données"
+                );
+              } else {
+                console.error("Une erreur inattendue s'est produite :", error);
+              }
+            }
 
             // Acknowledge the message: utilisé pour confirmer au serveur RabbitMQ que le message a été traité avec succès et peut être supprimé de la file d'attente.
             channel.ack(message);
