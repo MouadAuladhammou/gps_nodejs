@@ -245,7 +245,7 @@ connectMySQL();
       // définir 60 secondes de TIMEOUT pour chaque appareil GPS connecté, si cela se produit, il sera automatiquement déconnecté du serveur
       c.setTimeout(CLIENT_TIMEOUT_DURATION, () => {
         console.log("Socket Timeout ...");
-        closeTCPIPConnection();
+        closeTCPIPConnection(imei);
       });
 
       // ceci juste pour tester les erreurs de connexions TCP
@@ -254,7 +254,7 @@ connectMySQL();
       // }, 138000);
 
       // Fermer la connexion TCP
-      async function closeTCPIPConnection() {
+      async function closeTCPIPConnection(imei) {
         console.log("connexion", c.remoteAddress + ":" + c.remotePort);
         // Vérifier si la connexion correspondant à la variable "c" est trouvée
         const isClientGpsConnected = await isClientGpsInRedis(c);
@@ -264,6 +264,8 @@ connectMySQL();
             "✂️✂️ connexion TCP will be closed",
             c.remoteAddress + ":" + c.remotePort
           );
+
+          await deleteLatestData(imei);
 
           // Initialiser les IMEI associés et leur utilisateur
           const { imeis = [], userId = null } = await getUserImeisByImei(imei);
@@ -281,8 +283,6 @@ connectMySQL();
             })
           );
         }
-
-        await deleteLatestData(imei);
         c.destroy(); // NB: ici, il déclenche => c.on("close", () => { ... });
         c.end(); // NB: cela n'a aucun impact !
       }
@@ -346,17 +346,17 @@ connectMySQL();
 
       c.on("close", () => {
         console.log("close => client device imei disconnected ... ! ");
-        closeTCPIPConnection();
+        closeTCPIPConnection(imei);
       });
 
       c.on("end", () => {
         console.log("end => client device imei disconnected ... ! ");
-        closeTCPIPConnection();
+        closeTCPIPConnection(imei);
       });
 
       c.on("error", (err) => {
         console.log("error => client device imei connection error : ", err);
-        closeTCPIPConnection();
+        closeTCPIPConnection(imei);
       });
     });
 
