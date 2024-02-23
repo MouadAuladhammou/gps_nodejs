@@ -36,6 +36,11 @@ const createLocationModel = (userId) => {
     created_at: { type: Date },
   });
 
+  // Ajouter des indexes
+  LocationSchema.index({ imei: 1 });
+  LocationSchema.index({ hour: 1 });
+  LocationSchema.index({ minute: 1 });
+
   // Créer un index composite sur "timestamp" et "imei"
   LocationSchema.index({ timestamp: 1, imei: 1 }, { unique: true });
   const Location = mongoose.model(collectionName, LocationSchema);
