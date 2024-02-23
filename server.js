@@ -255,34 +255,34 @@ connectMySQL();
 
       // Fermer la connexion TCP
       async function closeTCPIPConnection(imei) {
-        console.log("connexion", c.remoteAddress + ":" + c.remotePort);
-        // Vérifier si la connexion correspondant à la variable "c" est trouvée
-        const isClientGpsConnected = await isClientGpsInRedis(c);
-        if (isClientGpsConnected) {
-          removeClientGpsFromRedis(c);
-          console.log(
-            "✂️✂️ connexion TCP will be closed",
-            c.remoteAddress + ":" + c.remotePort
-          );
+        console.log(
+          "close connexion IMEI: ",
+          imei + " => " + c.remoteAddress + ":" + c.remotePort
+        );
 
-          await deleteLatestData(imei);
+        await deleteLatestData(imei);
+        removeClientGpsFromRedis(c);
+        console.log(
+          "✂️✂️ connexion TCP will be closed",
+          c.remoteAddress + ":" + c.remotePort
+        );
 
-          // Initialiser les IMEI associés et leur utilisateur
-          const { imeis = [], userId = null } = await getUserImeisByImei(imei);
+        // Initialiser les IMEI associés et leur utilisateur
+        const { imeis = [], userId = null } = await getUserImeisByImei(imei);
 
-          // Émet un statut déconnecté pour les sockets Web respectifs dans toutes les Workers
-          const redisClient = redisClientPromise;
-          redisClient.publish(
-            "gpsDataChannel",
-            JSON.stringify({
-              imei,
-              values: null,
-              isDisconnected: true,
-              associatedImeis: imeis,
-              userId,
-            })
-          );
-        }
+        // Émet un statut déconnecté pour les sockets Web respectifs dans toutes les Workers
+        const redisClient = redisClientPromise;
+        redisClient.publish(
+          "gpsDataChannel",
+          JSON.stringify({
+            imei,
+            values: null,
+            isDisconnected: true,
+            associatedImeis: imeis,
+            userId,
+          })
+        );
+
         c.destroy(); // NB: ici, il déclenche => c.on("close", () => { ... });
         c.end(); // NB: cela n'a aucun impact !
       }
