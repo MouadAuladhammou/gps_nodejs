@@ -376,7 +376,7 @@ const getUserImeisByImei = async (imei) => {
           },
         ],
       });
-      const userId = user.id || false;
+      const userId = user?.id || false;
       if (userId) {
         // Rechercher toutes les IMEIs associées à l'utilisateur
         const imeis = await getImeisByUser(userId);
