@@ -29,7 +29,7 @@ class SettingService {
   async createSetting(userId, settingData) {
     let transaction;
     try {
-      const { name, description, rules } = settingData;
+      const { name, description, rules, status = false } = settingData;
 
       transaction = await sequelize.transaction();
 
@@ -48,6 +48,7 @@ class SettingService {
           name,
           description,
           user_id: userId,
+          status: Boolean(status),
         },
         { transaction }
       );
@@ -71,7 +72,7 @@ class SettingService {
   async updateSetting(userId, settingId, settingData) {
     let transaction;
     try {
-      const { name, description, rules } = settingData;
+      const { name, description, rules, status } = settingData;
 
       transaction = await sequelize.transaction();
 
@@ -89,6 +90,7 @@ class SettingService {
         {
           name,
           description,
+          status,
         },
         {
           where: { id: settingId, user_id: userId },

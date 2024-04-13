@@ -84,6 +84,56 @@ CREATE TABLE vehicles (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE tasks (
+    id int NOT NULL AUTO_INCREMENT,
+    vehicle_id int NOT NULL,
+    name varchar(50) NOT NULL,
+    description varchar(400) NOT NULL,
+    status TINYINT(1) DEFAULT 0,  -- NB: 0 => nouveau / 1 => en cours
+    polygon_start varchar(255) NOT NULL,
+    polygon_start_only TINYINT(1) DEFAULT 0, 
+    polygon_start_desc varchar(255) NOT NULL,
+    polygon_start_coordinates TEXT NOT NULL,
+    polygon_destination varchar(255) NULL,
+    polygon_destination_desc varchar(255) NULL,
+    polygon_destination_coordinates TEXT NULL,
+    date_time_start_From TIMESTAMP NOT NULL,
+    date_time_start_to TIMESTAMP NOT NULL,
+    date_time_end_From TIMESTAMP NULL,
+    date_time_end_to TIMESTAMP NULL,
+    user_id int NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE tasks_histories (
+    id int NOT NULL AUTO_INCREMENT,
+    vehicle_id int NOT NULL,
+    name varchar(50) NOT NULL,
+    description varchar(400) NOT NULL,
+    status TINYINT(1) DEFAULT 0,  -- NB: 2 => terminé / 3 => échoué
+    polygon_start varchar(255) NOT NULL,
+    polygon_start_only TINYINT(1) DEFAULT 0, 
+    polygon_start_desc varchar(255) NOT NULL,
+    polygon_start_coordinates TEXT NOT NULL,
+    polygon_destination varchar(255) NULL,
+    polygon_destination_desc varchar(255) NULL,
+    polygon_destination_coordinates TEXT NULL,
+    date_time_start_From TIMESTAMP NOT NULL,
+    date_time_start_to TIMESTAMP NOT NULL,
+    date_time_end_From TIMESTAMP NULL,
+    date_time_end_to TIMESTAMP NULL,
+    user_id int NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (id)
+);
+
 CREATE TABLE geo_parameters (
     id int NOT NULL AUTO_INCREMENT,
     user_id int NOT NULL,

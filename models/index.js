@@ -1,6 +1,8 @@
 const { Setting } = require("./setting.js");
 const { Group } = require("./group.js");
 const { Vehicle } = require("./vehicle.js");
+const { Task } = require("./task.js");
+const { TaskHistory } = require("./task_history.js");
 const { User } = require("./user.js");
 const { GeoParameter } = require("./geographic.js");
 const { Admin } = require("./admin.js");
@@ -26,6 +28,41 @@ Setting.hasMany(Group, {
 Group.hasMany(Vehicle, {
   foreignKey: "groupe_id",
   as: "vehicles",
+});
+
+Vehicle.hasMany(Task, {
+  foreignKey: "vehicle_id",
+  as: "tasks",
+});
+
+Task.belongsTo(Vehicle, {
+  foreignKey: "vehicle_id",
+  as: "vehicle",
+});
+
+Task.belongsTo(User, {
+  foreignKey: "user_id",
+  as: "user",
+});
+
+User.hasMany(Task, {
+  foreignKey: "user_id",
+  as: "tasks",
+});
+
+Vehicle.hasMany(TaskHistory, {
+  foreignKey: "vehicle_id",
+  as: "tasks_histories",
+});
+
+TaskHistory.belongsTo(Vehicle, {
+  foreignKey: "vehicle_id",
+  as: "vehicle",
+});
+
+User.hasMany(TaskHistory, {
+  foreignKey: "user_id",
+  as: "tasks_histories",
 });
 
 Group.belongsTo(Setting, {
@@ -55,4 +92,14 @@ Rule.belongsToMany(Setting, {
   foreignKey: "rule_id",
 });
 
-module.exports = { Setting, Group, Vehicle, User, GeoParameter, Admin, Rule };
+module.exports = {
+  Setting,
+  Group,
+  Vehicle,
+  Task,
+  TaskHistory,
+  User,
+  GeoParameter,
+  Admin,
+  Rule,
+};

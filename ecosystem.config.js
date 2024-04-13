@@ -1,11 +1,11 @@
 module.exports = {
   apps: [
-    {
-      name: "Restart MongoDB",
-      script: "./restart_mongodb.sh",
-      exec_interpreter: "bash", // Interpréteur de commandes
-      autorestart: false, // Ne pas redémarrer automatiquement
-    },
+    // {
+    //   name: "Restart MongoDB",
+    //   script: "./restart_mongodb.sh",
+    //   exec_interpreter: "bash", // Interpréteur de commandes
+    //   autorestart: false, // Ne pas redémarrer automatiquement
+    // },
     {
       name: "NodeJS BackEnd ",
       script: "./server.js",

@@ -474,7 +474,7 @@ class LocationService {
 
   async getNotifications(userId, page) {
     try {
-      const perPage = 4; // Nombre d'éléments à charger à chaque fois
+      const perPage = 15; // Nombre d'éléments à charger à chaque fois
       const currentPage = page || 1;
       const startIndex = (currentPage - 1) * perPage;
 
@@ -486,7 +486,16 @@ class LocationService {
         { $sort: { timestamp: -1, "notifications.type": 1 } }, // Tri par timestamp puis par type
         { $skip: startIndex },
         { $limit: perPage },
-        { $project: { _id: 1, imei: 1, notifications: 1, timestamp: 1 } }, // Projeter les notifications et les champs nécessaires
+        {
+          $project: {
+            _id: 1,
+            imei: 1,
+            notifications: 1,
+            timestamp: 1,
+            gps: 1,
+            ioElements: 1,
+          },
+        }, // Projeter les notifications et les champs nécessaires
       ]);
 
       return notifications || [];

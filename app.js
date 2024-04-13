@@ -30,6 +30,7 @@ const group = require("./routes/groupRoute.js");
 const rules = require("./routes/ruleRoute.js");
 const settings = require("./routes/settingRoute.js");
 const vehicle = require("./routes/vehicleRoute.js");
+const task = require("./routes/taskRoute.js");
 
 // routes API :
 app.use("/api/locations", location);
@@ -40,6 +41,7 @@ app.use("/api/groups", group);
 app.use("/api/rules", rules);
 app.use("/api/settings", settings);
 app.use("/api/vehicles", vehicle);
+app.use("/api/tasks", task);
 
 // ======================================================== [ Test API ] ======================================================== //
 app.get("/heavy", (req, res) => {

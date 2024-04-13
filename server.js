@@ -30,6 +30,7 @@ const {
   hasSameImeiAndTimestamp,
   getHourlyDateWithoutMinutes,
   isDateToday,
+  isWithin5Minutes,
 } = require("./utils/helpers");
 
 const { verifySocketToken } = require("./middleware/check_token");
@@ -68,7 +69,7 @@ connectMySQL();
     const httpServer = createServer(app);
 
     const io = require("socket.io")(httpServer, {
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
     });
 
     const redisClientPromise = await createRedisClient();
@@ -94,9 +95,9 @@ connectMySQL();
       const clientIP = req.socket.remoteAddress + ":" + req.socket.remotePort;
       const Server = "Server 2";
       const data = req.body;
-      observeChanges("350612076413275", {
-        imei: "350612076413275",
-        vehicle_id: "350612076413275",
+      observeChanges("866069062209505" /*data.imei*/, {
+        imei: "866069062209505", // data.imei,
+        vehicle_id: "866069062209505",
         gps: {
           latitude: latitude,
           longitude: longitude,
@@ -116,7 +117,8 @@ connectMySQL();
           "GSM Operator": 60401,
           "Total Odometer": 3116,
         },
-        timestamp: new Date("2024-02-22T17:20:57.033+00:00"),
+        // timestamp: new Date(data.timestamp).toISOString(),
+        timestamp: new Date().toISOString(),
         created_at: new Date(),
       });
       res.json({
@@ -143,9 +145,11 @@ connectMySQL();
     // observer les changements de valeurs IMEI
     const observeChanges = async (imei, values) => {
       const previousValues = await getLatestData(imei);
-      setLatestData(imei, values);
       // Vérifier si les valeurs ont changé
-      if (!hasSameImeiAndTimestamp(previousValues, values)) {
+      if (
+        !hasSameImeiAndTimestamp(previousValues, values) &&
+        isDateToday(values.timestamp)
+      ) {
         // Initialisation de données de notification (étape 1) :
         const vehicleWithSettings = await getVehicleWithSettings(imei);
 
@@ -182,7 +186,11 @@ connectMySQL();
 
         // Initialiser un canal "gpsDataChannell" pour détecter les changements en temps réel des données du GPS connecté via TCP afin qu'elles soient détectées et accessibles dans le traitement du socket Web.
         const redisClient = redisClientPromise;
-        isDateToday(values.timestamp) && // Vérifier si la date est d'aujourd'hui
+
+        // vérifier si un "timestamp" donné ne dépasse pas 5 minutes par rapport à la date actuelle, c'est si le cas, enregistrer les donnes GPS et les envoyer via web socket
+        if (isWithin5Minutes(values.timestamp)) {
+          setLatestData(imei, values);
+
           redisClient.publish(
             "gpsDataChannel",
             JSON.stringify({
@@ -193,17 +201,18 @@ connectMySQL();
             })
           );
 
-        // Envoyer les données à RabbitMQ pour consommation
-        publishDataToQueues(imei, valuesWithNotifs);
+          // Envoyer des données à RabbitMQ pour envoyer des e-mails de notification
+          emailDataQueue.length > 0 &&
+            publishDataToEmailQueues(
+              valuesWithNotifs.userId,
+              valuesWithNotifs.userEmail,
+              valuesWithNotifs.timestamp,
+              emailDataQueue
+            );
+        }
 
-        // Envoyer des données à RabbitMQ pour envoyer des e-mails de notification
-        emailDataQueue.length > 0 &&
-          publishDataToEmailQueues(
-            valuesWithNotifs.userId,
-            valuesWithNotifs.userEmail,
-            valuesWithNotifs.timestamp,
-            emailDataQueue
-          );
+        // Envoyer les données à RabbitMQ pour consommation (NB: ceci uniquement ces données de la jour en cours)
+        publishDataToQueues(imei, valuesWithNotifs);
       }
     };
 
@@ -260,28 +269,30 @@ connectMySQL();
           imei + " => " + c.remoteAddress + ":" + c.remotePort
         );
 
-        await deleteLatestData(imei);
+        imei && (await deleteLatestData(imei));
         removeClientGpsFromRedis(c);
         console.log(
           "✂️✂️ connexion TCP will be closed",
           c.remoteAddress + ":" + c.remotePort
         );
 
-        // Initialiser les IMEI associés et leur utilisateur
-        const { imeis = [], userId = null } = await getUserImeisByImei(imei);
+        if (imei) {
+          // Initialiser les IMEI associés et leur utilisateur
+          const { imeis = [], userId = null } = await getUserImeisByImei(imei);
 
-        // Émet un statut déconnecté pour les sockets Web respectifs dans toutes les Workers
-        const redisClient = redisClientPromise;
-        redisClient.publish(
-          "gpsDataChannel",
-          JSON.stringify({
-            imei,
-            values: null,
-            isDisconnected: true,
-            associatedImeis: imeis,
-            userId,
-          })
-        );
+          // Émet un statut déconnecté pour les sockets Web respectifs dans toutes les Workers
+          const redisClient = redisClientPromise;
+          redisClient.publish(
+            "gpsDataChannel",
+            JSON.stringify({
+              imei,
+              values: null,
+              isDisconnected: true,
+              associatedImeis: imeis,
+              userId,
+            })
+          );
+        }
 
         c.destroy(); // NB: ici, il déclenche => c.on("close", () => { ... });
         c.end(); // NB: cela n'a aucun impact !
@@ -299,10 +310,12 @@ connectMySQL();
 
             addClientGpsToRedis(c);
             console.log(
-              "🏁🏁 new client device imei connected from" +
+              "🏁🏁 new client device imei connected from " +
                 c.remoteAddress +
                 ":" +
-                c.remotePort
+                c.remotePort +
+                " IMEI:" +
+                imei
             );
           } else {
             let avl = parser.getAvl();
@@ -328,7 +341,6 @@ connectMySQL();
 
                 // réinitialiser le délai lorsqu'il y a des données
                 c.setTimeout(CLIENT_TIMEOUT_DURATION);
-
                 await listGpsClientsConnected(imei, timestamp);
               }
             );
@@ -552,9 +564,7 @@ connectMySQL();
 
     const PORT = process.env.PORT || 5001;
     const HOST = "localhost"; // il n'acceptera que les connexions provenant de reseaux local (gateway).
-    httpServer.listen(PORT, HOST, () =>
-      console.log(`App listening on port ${PORT}`)
-    );
+    httpServer.listen(PORT, () => console.log(`App listening on port ${PORT}`));
 
     // ============================================================================================================================== //
     // ===========================================================[ TEST ]=========================================================== //

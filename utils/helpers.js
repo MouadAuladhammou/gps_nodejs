@@ -10,7 +10,23 @@ const convertMapToObject = (data) => Object.fromEntries(data);
 const hasSameImeiAndTimestamp = (obj1, obj2) => {
   const { imei: imei1, timestamp: timestamp1 } = obj1 || {};
   const { imei: imei2, timestamp: timestamp2 } = obj2 || {};
-  return imei1 === imei2 && timestamp1 === timestamp2;
+
+  // convertir une date ISO en objet Date sans les millisecondes
+  const removeMilliseconds = (dateString) => {
+    const date = new Date(dateString);
+    date.setMilliseconds(0);
+    return date;
+  };
+
+  // Comparaison des IMEI
+  const sameImei = imei1 === imei2;
+
+  // Comparaison des timestamps (en éliminant les millisecondes)
+  const sameTimestamp =
+    removeMilliseconds(timestamp1).getTime() ===
+    removeMilliseconds(timestamp2).getTime();
+
+  return sameImei && sameTimestamp;
 };
 
 const getHourlyDateWithoutMinutes = (timestamp) => {
@@ -20,6 +36,18 @@ const getHourlyDateWithoutMinutes = (timestamp) => {
   const day = String(date.getDate()).padStart(2, "0");
   const hour = String(date.getHours()).padStart(2, "0");
   return `${year}_${month}_${day}__${hour}`;
+};
+
+const isWithin5Minutes = (timestamp) => {
+  // Convertir le timestamp en objet Date
+  const timestampDate = new Date(timestamp);
+
+  // Calculer la différence entre le timestamp et l'heure actuelle
+  const currentTime = new Date();
+  const differenceInMillis = Math.abs(currentTime - timestampDate);
+
+  // Vérifier si la différence est inférieure ou égale à 5 minutes (300000 millisecondes)
+  return differenceInMillis <= 5 * 60 * 1000;
 };
 
 // nettoyer les données entrantes (body et query) pour chaque requête
@@ -100,6 +128,7 @@ module.exports = {
   convertMapToObject,
   hasSameImeiAndTimestamp,
   getHourlyDateWithoutMinutes,
+  isWithin5Minutes,
   cleanData,
   formatFrenchDate,
   isDateToday,

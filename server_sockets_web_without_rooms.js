@@ -88,13 +88,14 @@ app.use(errorHandler);
 // ============================================================================================================================== //
 // Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
 async function publishDataToQueues(imei, data) {
+  const date = new Date(data.timestamp);
   const message = {
     imei: imei,
     gps: data.gps,
     ioElements: data.ioElements,
     timestamp: data.timestamp,
-    hour: data.timestamp.getHours(),
-    minute: data.timestamp.getMinutes(),
+    hour: date.getHours(),
+    minute: date.getMinutes(),
     notifications: data.notifications,
     userPhoneNumber: data.userPhoneNumber,
     created_at: new Date(),

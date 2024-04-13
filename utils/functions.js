@@ -376,7 +376,7 @@ const getUserImeisByImei = async (imei) => {
           },
         ],
       });
-      const userId = user?.id || false;
+      const userId = user && user.id ? user.id : false;
       if (userId) {
         // Rechercher toutes les IMEIs associées à l'utilisateur
         const imeis = await getImeisByUser(userId);
@@ -581,13 +581,14 @@ const isTokenInRedis = async (token) => {
 // ======================================================== [ Fonctions RabbitMQ ] ======================================================== //
 // Enregistrer les cordonnées IMEI dans la base de donnée MongoDB
 const publishDataToQueues = async (imei, data) => {
+  const date = new Date(data.timestamp);
   const message = {
     imei: imei,
     gps: data.gps,
     ioElements: data.ioElements,
     timestamp: data.timestamp,
-    hour: data.timestamp.getHours(),
-    minute: data.timestamp.getMinutes(),
+    hour: date.getHours(),
+    minute: date.getMinutes(),
     notifications: data.notifications,
     userPhoneNumber: data.userPhoneNumber,
     created_at: new Date(),
@@ -700,8 +701,8 @@ const consumeMessagesForMongoDB = async () => {
           if (vehicleAssociatedWithImei) {
             const userId = vehicleAssociatedWithImei.group.user_id; // Utiliser "user_id" pour déterminer le nom de la collection
             // Créer le modèle pour la collection 'user_x__locations'
-            // const Location = createLocationModel(userId);
-            const Location = createLocationModel(3); // ceci juste pour le test
+            const Location = createLocationModel(userId);
+            // const Location = createLocationModel(3); // ceci juste pour le test
             // Insérer les données dans MongoDB
             try {
               await Location.create(gpsData);
@@ -778,11 +779,11 @@ const consumeMessagesForSMS = async () => {
               });
 
               // Traitement de l'envoi de SMS en utilisant l'API ...
-              console.warn(
+              console.log(
                 `✉️✉️ 🚀🚀 SMS a été envoyé vers le numéro ${userPhoneNumber} pour la notification : ${notification.type}`
               );
             } else {
-              console.warn(
+              console.log(
                 `✉️✉️ 🛑🛑 Le dernier SMS envoyé pour la notification ${notification.type} n'a pas dépassé une heure`
               );
             }
@@ -791,7 +792,7 @@ const consumeMessagesForSMS = async () => {
           // Confirmer la réception et le traitement du message
           channel.ack(message);
         } else {
-          console.warn(
+          console.log(
             "Pas de notifications dans le message, le message sera rejeté."
           );
           // Gérer le cas où la variable "notifications" ne contient pas de notification à envoyer
