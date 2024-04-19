@@ -88,7 +88,7 @@ CREATE TABLE tasks (
     id int NOT NULL AUTO_INCREMENT,
     vehicle_id int NOT NULL,
     name varchar(50) NOT NULL,
-    description varchar(400) NOT NULL,
+    description varchar(400) NULL,
     status TINYINT(1) DEFAULT 0,  -- NB: 0 => nouveau / 1 => en cours
     polygon_start varchar(255) NOT NULL,
     polygon_start_only TINYINT(1) DEFAULT 0, 
@@ -113,7 +113,7 @@ CREATE TABLE tasks_histories (
     id int NOT NULL AUTO_INCREMENT,
     vehicle_id int NOT NULL,
     name varchar(50) NOT NULL,
-    description varchar(400) NOT NULL,
+    description varchar(400) NULL,
     status TINYINT(1) DEFAULT 0,  -- NB: 2 => terminé / 3 => échoué
     polygon_start varchar(255) NOT NULL,
     polygon_start_only TINYINT(1) DEFAULT 0, 

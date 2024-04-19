@@ -73,6 +73,31 @@ const getOrSetCache = async (key, cacheExpiration = null, callback) => {
   });
 };
 
+// récupérer les dernières données de MongoDB par imei
+const getLatestDataFromMongoDB = async (imei) => {
+  const vehicleInstance = await Vehicle.findOne({
+    where: { imei: imei },
+    include: [
+      {
+        model: Group,
+        as: "group",
+        attributes: ["user_id"],
+      },
+    ],
+  });
+
+  const Location = createLocationModel(vehicleInstance.group.user_id);
+
+  const latestData = await Location.findOne({ imei })
+    .sort({ timestamp: -1 })
+    .exec();
+
+  if (latestData) {
+    return latestData;
+  } else {
+    return null;
+  }
+};
 // Récupérer les paramètres de notifications de IMEI depuis Redis, s'il existe, récupérer-le, sinon créer-le et enregistrer-le avec un délai pour les récupérer la prochaine fois depuis Redis
 const getVehicleWithSettings = async (imei) => {
   return await getOrSetCache(`dataSettings?imei:${imei}`, 300, async () => {
@@ -820,6 +845,7 @@ module.exports = {
   getAllVehiclesGroupedByUser,
   getImeisByUser,
   getUserImeisByImei,
+  getLatestDataFromMongoDB,
 
   getLatestData,
   setLatestData,

@@ -5,6 +5,7 @@ const {
   manageNotifications,
   getImeisByUser,
   getUserImeisByImei,
+  getLatestDataFromMongoDB,
 
   getLatestData,
   setLatestData,
@@ -95,6 +96,7 @@ connectMySQL();
       const clientIP = req.socket.remoteAddress + ":" + req.socket.remotePort;
       const Server = "Server 2";
       const data = req.body;
+      console.log("🚀 ~ app.post ~ data:", data);
       observeChanges("866069062209505" /*data.imei*/, {
         imei: "866069062209505", // data.imei,
         vehicle_id: "866069062209505",
@@ -104,7 +106,8 @@ connectMySQL();
           speed: speed,
         },
         ioElements: {
-          Ignition: Math.round(Math.random()),
+          // Ignition: Math.round(Math.random()),
+          Ignition: Boolean(data.Ignition) ? 1 : 0,
           Movement: Math.round(Math.random()),
           "GSM Signal Strength": 5,
           "Sleep Mode": 0,
@@ -117,8 +120,8 @@ connectMySQL();
           "GSM Operator": 60401,
           "Total Odometer": 3116,
         },
-        // timestamp: new Date(data.timestamp).toISOString(),
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(data.timestamp).toISOString(),
+        // timestamp: new Date().toISOString(),
         created_at: new Date(),
       });
       res.json({
@@ -144,12 +147,35 @@ connectMySQL();
 
     // observer les changements de valeurs IMEI
     const observeChanges = async (imei, values) => {
-      const previousValues = await getLatestData(imei);
+      // initialiser "previousValues" depuis redis, si n'existe pas, initialiser depuis mongodb
+      let previousValues = await getLatestData(imei);
+      if (!previousValues) {
+        previousValues = await getLatestDataFromMongoDB(imei);
+      }
+
+      if (
+        previousValues &&
+        previousValues.ioElements &&
+        previousValues?.ioElements.Ignition === 0 &&
+        values?.ioElements.Ignition === 0
+      ) {
+        return;
+      }
+
       // Vérifier si les valeurs ont changé
       if (
-        !hasSameImeiAndTimestamp(previousValues, values) &&
+        !hasSameImeiAndTimestamp(previousValues, values) && // timestamp && IMEI
         isDateToday(values.timestamp)
       ) {
+        if (
+          !previousValues ||
+          new Date(previousValues?.timestamp).getTime() <
+            new Date(values?.timestamp).getTime()
+        ) {
+          // Mettre à jour les données dans Redis
+          setLatestData(imei, values);
+        }
+
         // Initialisation de données de notification (étape 1) :
         const vehicleWithSettings = await getVehicleWithSettings(imei);
 
@@ -189,8 +215,6 @@ connectMySQL();
 
         // vérifier si un "timestamp" donné ne dépasse pas 5 minutes par rapport à la date actuelle, c'est si le cas, enregistrer les donnes GPS et les envoyer via web socket
         if (isWithin5Minutes(values.timestamp)) {
-          setLatestData(imei, values);
-
           redisClient.publish(
             "gpsDataChannel",
             JSON.stringify({
